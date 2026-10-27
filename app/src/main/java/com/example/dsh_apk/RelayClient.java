@@ -115,9 +115,18 @@ final class RelayClient {
         } catch (Exception ignored) { return false; }
     }
 
-    private static String origin(String url) throws Exception {
+    static String origin(String url) throws Exception {
         URI uri = new URI(url);
-        return "relay://" + uri.getHost() + uri.getPath();
+        String path = uri.getPath();
+        if (!"relay".equals(uri.getScheme()) || uri.getHost() == null
+                || uri.getPort() != -1 || uri.getRawUserInfo() != null
+                || uri.getRawFragment() != null || path == null
+                || !path.matches("/[a-f0-9]{12}(?:/.*)?")) {
+            throw new IOException("无效的远程设备地址");
+        }
+        String device = "relay://" + uri.getHost() + path.substring(0, 13);
+        if (!isRelayUrl(device)) throw new IOException("无效的远程设备地址");
+        return device;
     }
 
     private void script(String javascript) {

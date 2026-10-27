@@ -35,4 +35,4 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $assets = @(Get-ChildItem -LiteralPath dist -File | ForEach-Object FullName)
-          gh release create v2.11.1 $assets --target $env:GITHUB_SHA --title "dsh-remote v2.11.1" --notes "Host plugin v0.16.1 reads the Windows system HTTPS proxy or HTTPS_PROXY for the Cloudflare relay connection. This fixes PCs where the browser reaches workers.dev through a proxy while the plugin's direct DNS connection fails. Android APK v2.11 is unchanged."
+          gh release create v2.12.0 $assets --target $env:GITHUB_SHA --title "dsh-remote v2.12.0" --notes "Android APK v2.12 fixes remote device URL parsing after relay pairing, so connection checks and all /v1 API calls use the correct PC ID. Host plugin v0.16.1 is unchanged. The APK uses debug signing and may require uninstalling an APK built on a different machine before installation."

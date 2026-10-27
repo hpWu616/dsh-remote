@@ -3,9 +3,18 @@ package com.example.dsh_apk;
 import org.junit.Test;
 
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class ExampleUnitTest {
+    @Test
+    public void relayApiPathKeepsTheDeviceAddressSeparate() throws Exception {
+        String device = "relay://dsh-remote-signal.hpwu616-dsh-remote.workers.dev/47ac464148e3";
+        assertEquals(device, RelayClient.origin(device));
+        assertEquals(device, RelayClient.origin(device + "/v1/health"));
+        assertEquals(device, RelayClient.origin(device + "/v1/models?sessionId=abc"));
+    }
+
     @Test
     public void onlyPrivateHttpsComputerAddressesAreAllowed() {
         assertTrue(DiscoveryClient.isPrivateSecureUrl("https://10.15.223.91:19390"));
