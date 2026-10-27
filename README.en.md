@@ -2,19 +2,19 @@
 
 [中文](README.md) · [English](README.en.md)
 
-Use an Android phone to connect to a PC running DeepSeek Harness (dsh). This repository contains the [Android app](app/) and the [dsh Host plugin](dsh-remote-host/). The app can manage workspaces and conversations across multiple PCs, send messages, and use models, work modes, skills, and scheduled tasks available on the PC.
+Use an Android phone to connect to a PC running DeepSeek Harness (dsh). This repository contains the [Android app](app/) and the [dsh Host plugin](dsh-remote-host/). The app can manage workspaces and conversations across multiple PCs, send messages, and use models, work modes, skills, and scheduled tasks available on the PC. You need a PC with dsh, a phone running Android 7.0 or later, and a local network on which the two devices can reach each other.
 
 ## Download
 
-Get these files from the private repository's [latest release](https://github.com/hpWu616/dsh-remote/releases/latest):
+Open the [latest release](https://github.com/hpWu616/dsh-remote/releases/latest) and download these files from **Assets** (not GitHub's automatically generated `Source code` archives):
 
 | File | Purpose |
 | --- | --- |
-| [dsh-remote-android-v2.7.apk](https://github.com/hpWu616/dsh-remote/releases/download/v2.7.0/dsh-remote-android-v2.7.apk) | Install on an Android phone |
-| [dsh-remote-host-v0.12.0.zip](https://github.com/hpWu616/dsh-remote/releases/download/v2.7.0/dsh-remote-host-v0.12.0.zip) | Extract and install on every PC running dsh |
-| [SHA256SUMS.txt](https://github.com/hpWu616/dsh-remote/releases/download/v2.7.0/SHA256SUMS.txt) | Verify the downloads |
+| `dsh-remote-android-v*.apk` | Install on an Android phone |
+| `dsh-remote-host-v*.zip` | Extract and install on every PC running dsh |
+| `SHA256SUMS.txt` | Verify the downloads |
 
-The repository is currently private, so sign in to a GitHub account with access before downloading. **The APK is debug signed.** Android may reject an update over a build signed on another machine. Uninstalling the old app erases its saved devices and pairing data; you will need to pair again after reinstalling.
+**The current APK is debug signed.** Android may reject an update over a build signed on another machine. Uninstalling the old app erases its saved devices and pairing data; you will need to pair again after reinstalling.
 
 ## Install the PC plugin
 
@@ -27,7 +27,7 @@ Do not edit dsh's installed files or profile by hand.
 
 ## Install the Android app
 
-1. On the phone, sign in to GitHub in a browser, open the release above, and download the APK.
+1. On the phone, open the release above in a browser and download the APK from Assets.
 2. Find the file with the **`.apk` extension** in Files or Downloads and open it. If Android blocks the installation, allow installs from the browser or file manager when prompted.
 3. Open dsh Remote. When transferring the APK through a chat app, “received” only confirms the transfer; you still need to open the APK from a file manager.
 

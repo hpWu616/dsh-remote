@@ -2,19 +2,19 @@
 
 [中文](README.md) · [English](README.en.md)
 
-用 Android 手机连接运行 DeepSeek Harness（dsh）的电脑。项目由 [Android App](app/) 和 [dsh Host 插件](dsh-remote-host/)组成：手机可管理多台电脑的工作区与会话，发送消息，并使用 PC 端的模型、工作模式、技能和自动化任务。
+用 Android 手机连接运行 DeepSeek Harness（dsh）的电脑。项目由 [Android App](app/) 和 [dsh Host 插件](dsh-remote-host/)组成：手机可管理多台电脑的工作区与会话，发送消息，并使用 PC 端的模型、工作模式、技能和自动化任务。使用前需要一台已安装 dsh 的电脑、一部 Android 7.0 或更新版本的手机，以及两者可互通的局域网。
 
 ## 下载
 
-从私有仓库的 [最新 Release](https://github.com/hpWu616/dsh-remote/releases/latest) 下载：
+打开 [最新 Release](https://github.com/hpWu616/dsh-remote/releases/latest)，在 **Assets** 中下载以下文件（不要下载 GitHub 自动生成的 `Source code` 压缩包）：
 
 | 文件 | 用途 |
 | --- | --- |
-| [dsh-remote-android-v2.7.apk](https://github.com/hpWu616/dsh-remote/releases/download/v2.7.0/dsh-remote-android-v2.7.apk) | 安装到 Android 手机 |
-| [dsh-remote-host-v0.12.0.zip](https://github.com/hpWu616/dsh-remote/releases/download/v2.7.0/dsh-remote-host-v0.12.0.zip) | 解压后安装到每台运行 dsh 的电脑 |
-| [SHA256SUMS.txt](https://github.com/hpWu616/dsh-remote/releases/download/v2.7.0/SHA256SUMS.txt) | 核对下载文件 |
+| `dsh-remote-android-v*.apk` | 安装到 Android 手机 |
+| `dsh-remote-host-v*.zip` | 解压后安装到每台运行 dsh 的电脑 |
+| `SHA256SUMS.txt` | 核对下载文件 |
 
-仓库目前为私有状态，下载前需在浏览器登录有访问权限的 GitHub 账号。**APK 是调试签名版本**；若手机已安装另一台电脑构建的同包名 App，Android 可能因签名不同而拒绝覆盖安装。卸载旧版会清除手机保存的设备和配对信息，重新安装后需要再次配对。
+当前发布的 **APK 是调试签名版本**；若手机已安装另一台电脑构建的同包名 App，Android 可能因签名不同而拒绝覆盖安装。卸载旧版会清除手机保存的设备和配对信息，重新安装后需要再次配对。
 
 ## 安装 PC 插件
 
@@ -27,9 +27,9 @@
 
 ## 安装 Android App
 
-1. 用手机浏览器登录 GitHub，打开上面的 Release，点击 APK 文件下载。
+1. 用手机浏览器打开上面的 Release，在 Assets 中点击 APK 文件下载。
 2. 在手机「文件」或「下载」中找到**扩展名为 `.apk`** 的文件并打开。若系统提示限制安装，请按提示允许当前浏览器或文件管理器安装应用。
-3. 安装后打开 dsh Remote。通过微信等聊天软件传文件时，「已接收」只表示传输完成；仍需在文件管理器中打开 APK。
+3. 安装后打开 dsh Remote。如果通过聊天软件传输 APK，「已接收」只表示传输完成；仍需在文件管理器中打开安装包。
 
 ## 连接与配对
 
