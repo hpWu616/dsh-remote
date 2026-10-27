@@ -35,4 +35,4 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $assets = @(Get-ChildItem -LiteralPath dist -File | ForEach-Object FullName)
-          gh release create v2.11.0 $assets --target $env:GITHUB_SHA --title "dsh-remote v2.11.0" --notes "Android debug APK v2.11 and dsh Host plugin v0.16.0 add end-to-end encrypted WebSocket relay for PCs and phones on different routers. The PC panel shows relay status, a remote device address, an identity code, and an eight-digit pairing code. The relay uses Cloudflare Workers Free without TURN or router port forwarding. Both devices must be able to access the Worker hostname. The APK uses debug signing and is intended for testing."
+          gh release create v2.11.1 $assets --target $env:GITHUB_SHA --title "dsh-remote v2.11.1" --notes "Host plugin v0.16.1 reads the Windows system HTTPS proxy or HTTPS_PROXY for the Cloudflare relay connection. This fixes PCs where the browser reaches workers.dev through a proxy while the plugin's direct DNS connection fails. Android APK v2.11 is unchanged."

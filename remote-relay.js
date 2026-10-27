@@ -1,13 +1,40 @@
 import https from 'node:https';
+import { execFileSync } from 'node:child_process';
 import { createHash, createHmac, createECDH, createCipheriv, createDecipheriv,
   sign, timingSafeEqual } from 'node:crypto';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { WebSocket } = require('./vendor/relay-deps.cjs');
+const { WebSocket, HttpsProxyAgent } = require('./vendor/relay-deps.cjs');
 const MAX_BODY = 12 * 1024 * 1024;
 const CHUNK_SIZE = 8192;
 const RECONNECT_MS = 5000;
+
+export function relayProxyUrl(environment = process.env, platform = process.platform,
+  readWindowsProxy = () => execFileSync('reg', ['query',
+    'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings',
+    '/v', 'ProxyEnable'], { encoding: 'utf8', timeout: 2000 }) + '\n' +
+    execFileSync('reg', ['query',
+      'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings',
+      '/v', 'ProxyServer'], { encoding: 'utf8', timeout: 2000 })) {
+  const fromEnvironment = environment.HTTPS_PROXY || environment.https_proxy;
+  if (fromEnvironment) return fromEnvironment;
+  if (platform !== 'win32') return null;
+  try {
+    const settings = readWindowsProxy();
+    if (!/ProxyEnable\s+REG_DWORD\s+0x1\b/i.test(settings)) return null;
+    const value = settings.match(/ProxyServer\s+REG_SZ\s+([^\r\n]+)/i)?.[1]?.trim();
+    if (!value) return null;
+    const entries = value.includes('=') ? value.split(';') : [value];
+    const entry = entries.find(item => /^https=/i.test(item))
+      || entries.find(item => /^http=/i.test(item))
+      || (value.includes('=') ? null : entries[0]);
+    if (!entry) return null;
+    const address = entry.replace(/^(?:https?)=/i, '').trim();
+    if (!/^[a-z0-9.-]+:[0-9]{1,5}$/i.test(address)) return null;
+    return `http://${address}`;
+  } catch { return null; }
+}
 
 function validProof(token, nonce, proof) {
   if (typeof proof !== 'string') return false;
@@ -231,9 +258,11 @@ export function startRelayHost({ pairing, tlsIdentity, port, signalUrl, onStatus
   }
   function connect() {
     if (stopped) return;
+    const proxyUrl = relayProxyUrl();
     socket = new WebSocket(target.href, {
       headers: { Authorization: `Bearer ${hostSecret}` },
       handshakeTimeout: 10_000,
+      ...(proxyUrl ? { agent: new HttpsProxyAgent(proxyUrl) } : {}),
     });
     socket.on('message', raw => {
       try { Promise.resolve(onSignal(JSON.parse(raw.toString())))

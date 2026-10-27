@@ -38,7 +38,7 @@ export function createIdentity(hostId) {
   const until = new Date(now);
   until.setUTCFullYear(until.getUTCFullYear() + 10);
   const serial = randomBytes(16);
-  serial[0] &= 0x7f;
+  serial[0] = (serial[0] & 0x3f) | 0x01;
   const body = sequence(
     der(0xa0, integer(Buffer.from([2]))), integer(serial),
     signatureAlgorithm, commonName, sequence(utc(from), utc(until)), commonName,

@@ -2,8 +2,17 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import https from 'node:https';
 import test from 'node:test';
-import { attachApiChannel } from './remote-relay.js';
+import { attachApiChannel, relayProxyUrl } from './remote-relay.js';
 import { createIdentity } from './tls-identity.js';
+
+test('relay uses the HTTPS proxy configured in Windows', () => {
+  const settings = 'ProxyEnable    REG_DWORD    0x1\n'
+    + 'ProxyServer    REG_SZ    http=127.0.0.1:7897;https=127.0.0.1:7898';
+  assert.equal(relayProxyUrl({}, 'win32', () => settings), 'http://127.0.0.1:7898');
+  assert.equal(relayProxyUrl({}, 'win32', () => settings.replace('0x1', '0x0')), null);
+  assert.equal(relayProxyUrl({ HTTPS_PROXY: 'http://proxy.example:8000' }, 'win32',
+    () => settings), 'http://proxy.example:8000');
+});
 
 test('data channel forwards an authenticated request to the local API', async () => {
   const identity = createIdentity('0123456789ab');

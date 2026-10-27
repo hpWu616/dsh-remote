@@ -1,6 +1,6 @@
 {
   "name": "@hpwu616/dsh-remote-host",
-  "version": "0.16.0",
+  "version": "0.16.1",
   "private": true,
   "type": "module",
   "description": "Authenticated command bridge for the dsh Remote Android client",
@@ -44,6 +44,7 @@
   },
   "devDependencies": {
     "esbuild": "^0.28.2",
+    "https-proxy-agent": "^7.0.6",
     "ws": "^8.22.0"
   }
 }
