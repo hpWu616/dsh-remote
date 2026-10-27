@@ -2000,36 +2000,70 @@ public final class MainActivity extends Activity {
                 .setOnClickListener(view -> {
                     String label = name.getText().toString().trim();
                     if (label.isEmpty()) { name.setError("请输入设备名称"); return; }
-                    String url;
-                    try { url = RemoteClient.normalizeUrl(address.getText().toString()); }
-                    catch (Exception e) { address.setError(e.getMessage()); return; }
-                    List<DeviceStore.Device> list = new ArrayList<>(devices.list());
-                    for (DeviceStore.Device device : list) {
-                        if (device.url.equals(url) && (existing == null
-                                || !device.id.equals(existing.id))) {
-                            address.setError("此地址已添加");
+                    String typed = address.getText().toString().trim();
+                    String memo = note.getText().toString().trim();
+                    if (DiscoveryClient.isPrivateAddressUrl(typed)) {
+                        if (Build.VERSION.SDK_INT >= 37 && checkSelfPermission(LOCAL_NETWORK)
+                                != PackageManager.PERMISSION_GRANTED) {
+                            pendingAction = 5;
+                            requestPermissions(new String[]{LOCAL_NETWORK}, NETWORK_REQUEST);
                             return;
                         }
+                        Button save = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+                        save.setEnabled(false);
+                        setStatus("正在查找 " + typed + " 上的插件…");
+                        discoveryWorker.execute(() -> {
+                            try {
+                                DiscoveryClient.Found found = new DiscoveryClient().probe(typed);
+                                main.post(() -> {
+                                    if (!dialog.isShowing()) return;
+                                    save.setEnabled(true);
+                                    saveDevice(existing, label, memo, found.url, address, dialog);
+                                });
+                            } catch (Exception e) {
+                                main.post(() -> {
+                                    if (!dialog.isShowing()) return;
+                                    save.setEnabled(true);
+                                    address.setError(e.getMessage());
+                                    setStatus("未找到该地址上的 PC 插件");
+                                });
+                            }
+                        });
+                        return;
                     }
-                    DeviceStore.Device updated = new DeviceStore.Device(existing == null
-                            ? UUID.randomUUID().toString() : existing.id, label,
-                            note.getText().toString().trim(), url);
-                    if (existing != null) list.removeIf(item -> item.id.equals(existing.id));
-                    list.add(updated);
-                    devices.save(list, updated.id);
-                    if (existing != null && !existing.url.equals(url)) {
-                        secrets.removeToken(existing.url);
-                        devices.selectWorkspace(updated.id, "");
-                        workspaceCache.remove(updated.id);
-                    }
-                    selected = updated;
-                    renderDeviceRows();
-                    renderSelected();
-                    renderWorkspaces();
-                    setStatus("已保存 " + label);
-                    dialog.dismiss();
+                    try {
+                        saveDevice(existing, label, memo,
+                                RemoteClient.normalizeUrl(typed), address, dialog);
+                    } catch (Exception e) { address.setError(e.getMessage()); }
                 }));
         dialog.show();
+    }
+
+    private void saveDevice(DeviceStore.Device existing, String label, String memo,
+                            String url, EditText address, AlertDialog dialog) {
+        List<DeviceStore.Device> list = new ArrayList<>(devices.list());
+        for (DeviceStore.Device device : list) {
+            if (device.url.equals(url) && (existing == null || !device.id.equals(existing.id))) {
+                address.setError("此地址已添加");
+                return;
+            }
+        }
+        DeviceStore.Device updated = new DeviceStore.Device(existing == null
+                ? UUID.randomUUID().toString() : existing.id, label, memo, url);
+        if (existing != null) list.removeIf(item -> item.id.equals(existing.id));
+        list.add(updated);
+        devices.save(list, updated.id);
+        if (existing != null && !existing.url.equals(url)) {
+            secrets.removeToken(existing.url);
+            devices.selectWorkspace(updated.id, "");
+            workspaceCache.remove(updated.id);
+        }
+        selected = updated;
+        renderDeviceRows();
+        renderSelected();
+        renderWorkspaces();
+        setStatus("已保存 " + label);
+        dialog.dismiss();
     }
 
     private void confirmRemove() {
@@ -2262,6 +2296,7 @@ public final class MainActivity extends Activity {
         pendingAction = 0;
         if (results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED) {
             if (action == 4) scanDevices(true);
+            else if (action == 5) setStatus("已获得局域网权限，请再次点击保存");
             else start(action);
         } else {
             setStatus("未获局域网权限；请在系统设置中允许后重试");

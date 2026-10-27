@@ -17,4 +17,18 @@ public class ExampleUnitTest {
         assertThrows(IllegalArgumentException.class, () ->
                 RemoteClient.normalizeUrl("http://unrelated.local:19388"));
     }
+
+    @Test
+    public void privateComputerAddressesCanBeLookedUp() {
+        org.junit.Assert.assertTrue(DiscoveryClient.isPrivateAddressUrl(
+                "http://10.15.223.91:19388"));
+        org.junit.Assert.assertTrue(DiscoveryClient.isPrivateAddressUrl(
+                "http://172.23.4.5:19388"));
+        org.junit.Assert.assertTrue(DiscoveryClient.isPrivateAddressUrl(
+                "http://192.168.1.20:19388"));
+        org.junit.Assert.assertFalse(DiscoveryClient.isPrivateAddressUrl(
+                "http://8.8.8.8:19388"));
+        org.junit.Assert.assertFalse(DiscoveryClient.isPrivateAddressUrl(
+                "http://10.15.223.91.evil.example:19388"));
+    }
 }

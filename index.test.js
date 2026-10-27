@@ -81,6 +81,7 @@ test('dsh Client Connection exposes the current pairing code', async () => {
   assert.ok(routes.get('/api/dsh-remote-pairing'));
   assert.equal((await route.fetch()).status, 503);
   const first = await loadPairing(credentials);
+  assert.match(first.hostId, /^[a-f0-9]{12}$/);
   const savedCode = first.code;
   const savedToken = first.token;
   const restarted = await loadPairing(credentials);
@@ -97,6 +98,7 @@ test('dsh Client Connection exposes the current pairing code', async () => {
   assert.equal(effects.length, 1);
   const details = await (await route.fetch()).json();
   assert.equal(details.lanHost, '自动发现');
+  assert.equal(details.host, null);
   assert.ok(Array.isArray(details.networks));
 });
 

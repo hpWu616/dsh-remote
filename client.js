@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-  id: '@local/dsh-remote-host',
+  id: '@hpwu616/dsh-remote-host',
   factory(require) {
     const React = require('react');
     const h = React.createElement;
@@ -84,6 +84,8 @@ window.__ModuleLoader__.load({
           h('div', { style: { borderTop: '1px solid var(--dsw-alias-border-l1, #d8dce7)',
             marginTop: 12, paddingTop: 10, fontSize: 11, lineHeight: 1.7 } },
           h('div', { style: { opacity: 0.65, marginBottom: 3 } }, '电脑网络'),
+          details?.host && h('div', { style: { overflowWrap: 'anywhere', marginBottom: 5,
+            fontWeight: 600 } }, `手机设备地址  http://${details.host}:${details.port}`),
           details?.networks?.length
             ? details.networks.map((network, index) => h('div', {
               key: `${network.address}-${index}`, style: { overflowWrap: 'anywhere' },

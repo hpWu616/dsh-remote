@@ -22,6 +22,8 @@ Open the [latest release](https://github.com/hpWu616/dsh-remote/releases/latest)
 2. Confirm that the plugin is enabled, then **fully quit and restart dsh**. Restart again after updating the plugin.
 3. Open “Plugins → Installed → Built-in plugin settings → Phone connection” (the dsh UI currently labels the last item “手机连接”). There you can allow or block new pairing, show or hide the eight-digit code, and see the PC address and port. Collapsing the panel leaves a small “手机连接” button.
 
+Install the plugin separately on every PC you want to connect. The new package name is `@hpwu616/dsh-remote-host`. If `@local/dsh-remote-host` is already installed, remove or disable it in dsh, fully quit dsh, and install the new package so both versions do not compete for the same port.
+
 If dsh reports an installation timeout, run `git ls-remote https://github.com/hpWu616/dsh-remote.git HEAD` on the PC. If that command also cannot connect, GitHub is unreachable to Git on this PC; changing the plugin layout cannot fix that timeout. Download `dsh-remote-host-v*.zip` from the release instead, extract it, and select the extracted `dsh-remote-host` directory in dsh's local bundle installer. In Creator mode, you can also call `plugin_manager` → `install_bundle` with that directory's absolute path as `target`. Do not select the ZIP itself or edit dsh's installed files or profile by hand.
 
 ## Install the Android app
@@ -33,7 +35,7 @@ If dsh reports an installation timeout, run `git ls-remote https://github.com/hp
 ## Connect and pair
 
 1. The phone and PC must be on a **mutually reachable local network**. Ethernet for the PC and Wi-Fi for the phone are fine, provided the network does not isolate them. The eight-digit code cannot bridge separate, unreachable subnets.
-2. Open the app's top-left menu and tap “发现” (Discover), then select the PC. If it is not found, check that the PC plugin is running and that the devices can communicate.
+2. Open the app's top-left menu and tap “发现” (Discover), then select the PC. Alternatively, tap Add device and enter that PC's IPv4 address and port from the Phone connection panel, for example `http://192.168.1.20:19388`. The app probes the plugin at that address and stores its unique host name. Give each PC its own name and note. Discovery and directed probing require a mutually reachable subnet and UDP 19389.
 3. On the PC, enable “允许新手机配对” (Allow new phones to pair) under “手机连接”, then tap “显示” (Show) for the eight-digit code. Enter it for that PC in the app and tap “配对设备” (Pair device). Pair each PC separately.
 4. You may hide the code or disable new pairing afterward. Previously paired devices are checked automatically when the app is reopened. The app does not maintain a live connection while in the background.
 
@@ -48,6 +50,7 @@ If dsh reports an installation timeout, run `git ls-remote https://github.com/hp
 ## Troubleshooting
 
 - **No PC found:** Restart dsh after installing the plugin. Check network isolation and the PC firewall's private-network rules for TCP 19388, UDP 19389, and UDP 5353.
+- **Plugin installer says no write permission:** If the installation details show `ERR_PNPM_EPERM` while renaming the old `@local/dsh-remote-host` directory, remove or disable the old plugin in dsh, fully quit dsh, and install the new package. Do not edit the dsh profile by hand.
 - **Code shown, but no connection:** The code authenticates a reachable PC; it does not establish a network route. The address and port shown in the PC panel help diagnose reachability.
 - **APK will not update:** Debug signatures from different builds may differ. Preserve any phone-side data you need before uninstalling the old app, installing the release APK, and pairing again.
 

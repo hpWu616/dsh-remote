@@ -812,7 +812,8 @@ export function apply(ctx, config = {}) {
   ctx.connection.fetch.register({
     path: '/api/dsh-remote-pair-code', methods: ['GET'], requestBody: 'buffered',
     fetch: () => new Response(JSON.stringify({ code: pairing?.enabled ? pairing.code : null,
-      enabled: pairing?.enabled ?? false, lanHost: '自动发现', port,
+      enabled: pairing?.enabled ?? false, lanHost: '自动发现',
+      host: pairing ? `dsh-${pairing.hostId}.local` : null, port,
       networks: lanNetworks() }), {
       status: pairing ? 200 : 503,
       headers: { 'Content-Type': 'application/json; charset=utf-8',
