@@ -27,5 +27,5 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $assets = @(Get-ChildItem -LiteralPath dist -File | ForEach-Object FullName)
-          gh release create v2.7.0 $assets --target $env:GITHUB_SHA --title "dsh-remote v2.7.0" --notes "Android debug APK v2.7 and dsh Host plugin v0.12.0. The APK uses debug signing and is intended for testing."
+          gh release create v2.7.1 $assets --target $env:GITHUB_SHA --title "dsh-remote v2.7.1" --notes "Android debug APK v2.7 and dsh Host plugin v0.12.1. The repository root is now directly installable as a dsh plugin. The APK uses debug signing and is intended for testing."
 
