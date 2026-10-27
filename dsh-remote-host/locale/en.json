@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "dsh Remote Host",
+    "description": "Authenticated command bridge for the Android dsh Remote app."
+  }
+}

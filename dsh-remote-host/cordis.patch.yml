@@ -1,0 +1,5 @@
+- insert:
+    - id: dsh-remote-host
+      name: '@local/dsh-remote-host'
+      config:
+        port: 19388
