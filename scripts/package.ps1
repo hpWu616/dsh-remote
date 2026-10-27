@@ -33,7 +33,7 @@ $stagePlugin = Join-Path $stage 'dsh-remote-host'
 New-Item -ItemType Directory -Path (Join-Path $stagePlugin 'locale') -Force | Out-Null
 try {
     foreach ($name in @('package.json', 'cordis.patch.yml', 'index.js', 'client.js',
-            'discovery.js', 'icon.svg', 'LICENSE')) {
+            'discovery.js', 'tls-identity.js', 'icon.svg', 'LICENSE')) {
         Copy-Item -LiteralPath (Join-Path $pluginSource $name) -Destination $stagePlugin
     }
     Copy-Item -LiteralPath (Join-Path $pluginSource 'locale\en.json') `

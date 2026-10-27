@@ -15,22 +15,39 @@ import java.net.NetworkInterface;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
+import java.security.MessageDigest;
+import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
+import java.security.cert.CertificateException;
 
 final class DiscoveryClient {
     static final class Found {
         final String name;
+        final String id;
         final String url;
         final String addressUrl;
+        final String secureUrl;
+        final String fingerprint;
 
-        Found(String name, String url, String addressUrl) {
+        Found(String name, String id, String url, String addressUrl,
+              String secureUrl, String fingerprint) {
             this.name = name;
+            this.id = id;
             this.url = url;
             this.addressUrl = addressUrl;
+            this.secureUrl = secureUrl;
+            this.fingerprint = fingerprint;
         }
     }
 
@@ -57,6 +74,49 @@ final class DiscoveryClient {
         } catch (Exception ignored) { return false; }
     }
 
+    static boolean isPrivateSecureUrl(String input) {
+        if (input == null || !input.startsWith("https://")) return false;
+        return isPrivateAddressUrl("http://" + input.substring("https://".length()));
+    }
+
+    Found probeHttps(String input) throws Exception {
+        if (!isPrivateSecureUrl(input)) {
+            throw new IllegalArgumentException("请输入 HTTPS 电脑地址，例如 https://192.168.1.20:19390");
+        }
+        URI uri = new URI(input.trim());
+        X509TrustManager discoveryTrust = new X509TrustManager() {
+            @Override public X509Certificate[] getAcceptedIssuers() {
+                return new X509Certificate[0];
+            }
+            @Override public void checkClientTrusted(X509Certificate[] chain, String authType)
+                    throws CertificateException { throw new CertificateException("不可使用客户端证书"); }
+            @Override public void checkServerTrusted(X509Certificate[] chain, String authType) {
+                // This probe sends no credentials. The user verifies the fingerprint before pairing.
+            }
+        };
+        SSLContext context = SSLContext.getInstance("TLS");
+        context.init(null, new TrustManager[]{discoveryTrust}, new SecureRandom());
+        try (SSLSocket socket = (SSLSocket) context.getSocketFactory()
+                .createSocket()) {
+            socket.connect(new InetSocketAddress(uri.getHost(), uri.getPort()), 4000);
+            socket.setSoTimeout(4000);
+            socket.startHandshake();
+            X509Certificate certificate = (X509Certificate)
+                    socket.getSession().getPeerCertificates()[0];
+            String subject = certificate.getSubjectX500Principal().getName();
+            Matcher match = Pattern.compile("(?:^|,)CN=dsh-([a-f0-9]{12})\\.local(?:,|$)")
+                    .matcher(subject);
+            if (!match.find()) throw new java.io.IOException("该地址不是 dsh Remote 插件");
+            byte[] hash = MessageDigest.getInstance("SHA-256").digest(certificate.getEncoded());
+            StringBuilder fingerprint = new StringBuilder();
+            for (byte value : hash) fingerprint.append(String.format("%02x", value & 255));
+            String host = "dsh-" + match.group(1) + ".local";
+            return new Found("电脑", match.group(1), "http://" + host + ":19388",
+                    "", "https://" + uri.getHost() + ":" + uri.getPort(),
+                    fingerprint.toString());
+        }
+    }
+
     Found probe(String input) throws Exception {
         if (!isPrivateAddressUrl(input)) {
             throw new IllegalArgumentException("请输入局域网电脑地址，例如 http://192.168.1.20:19388");
@@ -64,7 +124,8 @@ final class DiscoveryClient {
         InetAddress target = InetAddress.getByName(new URI(input.trim()).getHost());
         String nonce = newNonce();
         byte[] request = new JSONObject().put("type", "dsh-discover")
-                .put("nonce", nonce).toString().getBytes(StandardCharsets.UTF_8);
+                .put("nonce", nonce).put("direct", true).toString()
+                .getBytes(StandardCharsets.UTF_8);
         try (DatagramSocket socket = new DatagramSocket()) {
             socket.setSoTimeout(800);
             for (int attempt = 0; attempt < 3; attempt++) {
@@ -79,7 +140,7 @@ final class DiscoveryClient {
                 } catch (java.net.SocketTimeoutException ignored) { /* Retry. */ }
             }
         }
-        throw new java.io.IOException("该地址没有响应插件发现请求，请检查 PC 插件和 UDP 19389");
+        return probeHttps("https://" + target.getHostAddress() + ":19390");
     }
 
     private static String newNonce() {
@@ -98,15 +159,22 @@ final class DiscoveryClient {
             String id = reply.getString("id");
             int port = reply.getInt("port");
             String host = reply.getString("host");
+            int securePort = reply.optInt("securePort", 0);
+            String fingerprint = reply.optString("fingerprint", "");
             if (!"dsh-host".equals(reply.getString("type"))
                     || (requireNonce && !reply.has("nonce"))
                     || (reply.has("nonce") && !nonce.equals(reply.getString("nonce")))
                     || !id.matches("[a-f0-9]{12}")
                     || !host.equals("dsh-" + id + ".local")
                     || port < 1 || port > 65535) return null;
-            return new Found(reply.optString("name", "电脑"),
+            if (securePort != 0 && (securePort < 1 || securePort > 65535
+                    || !fingerprint.matches("[a-f0-9]{64}"))) return null;
+            String address = packet.getAddress().getHostAddress();
+            return new Found(reply.optString("name", "电脑"), id,
                     "http://" + host + ":" + port,
-                    "http://" + packet.getAddress().getHostAddress() + ":" + port);
+                    "http://" + address + ":" + port,
+                    securePort == 0 ? "" : "https://" + address + ":" + securePort,
+                    fingerprint);
         } catch (Exception ignored) { return null; }
     }
 

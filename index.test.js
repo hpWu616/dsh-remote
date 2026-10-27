@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { X509Certificate } from 'node:crypto';
+import https from 'node:https';
 import { after, before, test } from 'node:test';
 import { runInNewContext } from 'node:vm';
 import { apply, chatBridge, createServer, loadPairing, workspaceBridge } from './index.js';
-import { hostAnswer, isHostQuery, lanNetworks } from './discovery.js';
+import { allowsDiscoveryReply, hostAnswer, isHostQuery, lanNetworks } from './discovery.js';
+import { createIdentity } from './tls-identity.js';
 
 const token = 'x'.repeat(64);
 const pairing = { code: '12345678', async claim(code) {
@@ -439,6 +442,44 @@ test('mDNS answer names the discovered host and address', () => {
   assert.equal(isHostQuery(packet, host), true);
   assert.equal(isHostQuery(packet, 'other.local'), false);
   assert.deepEqual([...hostAnswer(host, '10.7.32.43').subarray(-4)], [10, 7, 32, 43]);
+});
+
+test('routed private discovery requires an explicit directed probe', () => {
+  const adapters = [{ address: '10.7.32.43', netmask: '255.255.192.0' }];
+  assert.equal(allowsDiscoveryReply('10.7.40.5', adapters, false), true);
+  assert.equal(allowsDiscoveryReply('10.15.135.103', adapters, false), false);
+  assert.equal(allowsDiscoveryReply('10.15.135.103', adapters, true), true);
+  assert.equal(allowsDiscoveryReply('8.8.8.8', adapters, true), false);
+});
+
+test('each PC can generate a verifiable self-signed TLS identity', () => {
+  const identity = createIdentity('0123456789ab');
+  const certificate = new X509Certificate(identity.certificate);
+  assert.equal(certificate.fingerprint256.replaceAll(':', '').toLowerCase(),
+    identity.fingerprint);
+  assert.equal(certificate.verify(certificate.publicKey), true);
+});
+
+test('the same authenticated API is served over pinned HTTPS', async () => {
+  const identity = createIdentity('0123456789ab');
+  const secureServer = createServer(token, pairing, null, null, null, identity);
+  await new Promise(resolve => secureServer.listen(0, '127.0.0.1', resolve));
+  try {
+    const result = await new Promise((resolve, reject) => {
+      https.get({ hostname: '127.0.0.1', port: secureServer.address().port,
+        path: '/v1/health', rejectUnauthorized: false,
+        headers: { Authorization: `Bearer ${token}` } }, response => {
+        const certificate = response.socket.getPeerCertificate(true);
+        resolve({ status: response.statusCode,
+          fingerprint: certificate.fingerprint256.replaceAll(':', '').toLowerCase() });
+        response.resume();
+      }).on('error', reject);
+    });
+    assert.equal(result.status, 200);
+    assert.equal(result.fingerprint, identity.fingerprint);
+  } finally {
+    await new Promise(resolve => secureServer.close(resolve));
+  }
 });
 
 test('Client entry registers the pairing card on the installed plugin page', () => {

@@ -67,6 +67,21 @@ final class SecretStore {
         edit.apply();
     }
 
+    String fingerprint(String url) {
+        return prefs.getString("cert_" + keySuffix(url), "");
+    }
+
+    void saveFingerprint(String url, String fingerprint) {
+        if (!fingerprint.matches("[a-f0-9]{64}")) {
+            throw new IllegalArgumentException("无效的电脑身份指纹");
+        }
+        prefs.edit().putString("cert_" + keySuffix(url), fingerprint).apply();
+    }
+
+    void removeFingerprint(String url) {
+        prefs.edit().remove("cert_" + keySuffix(url)).apply();
+    }
+
     private String keySuffix(String url) {
         return Base64.encodeToString(url.getBytes(StandardCharsets.UTF_8),
                 Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING);

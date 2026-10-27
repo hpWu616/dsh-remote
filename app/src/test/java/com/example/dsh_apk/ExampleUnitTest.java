@@ -30,5 +30,9 @@ public class ExampleUnitTest {
                 "http://8.8.8.8:19388"));
         org.junit.Assert.assertFalse(DiscoveryClient.isPrivateAddressUrl(
                 "http://10.15.223.91.evil.example:19388"));
+        org.junit.Assert.assertTrue(DiscoveryClient.isPrivateSecureUrl(
+                "https://10.15.223.91:19390"));
+        org.junit.Assert.assertFalse(DiscoveryClient.isPrivateSecureUrl(
+                "https://8.8.8.8:19390"));
     }
 }

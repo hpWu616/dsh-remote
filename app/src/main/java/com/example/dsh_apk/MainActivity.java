@@ -129,6 +129,7 @@ public final class MainActivity extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         secrets = new SecretStore(this);
+        client.setSecretStore(secrets);
         devices = new DeviceStore(this);
         List<DeviceStore.Device> saved = devices.list();
         for (DeviceStore.Device device : saved) {
@@ -2002,7 +2003,8 @@ public final class MainActivity extends Activity {
                     if (label.isEmpty()) { name.setError("请输入设备名称"); return; }
                     String typed = address.getText().toString().trim();
                     String memo = note.getText().toString().trim();
-                    if (DiscoveryClient.isPrivateAddressUrl(typed)) {
+                    if (DiscoveryClient.isPrivateAddressUrl(typed)
+                            || DiscoveryClient.isPrivateSecureUrl(typed)) {
                         if (Build.VERSION.SDK_INT >= 37 && checkSelfPermission(LOCAL_NETWORK)
                                 != PackageManager.PERMISSION_GRANTED) {
                             pendingAction = 5;
@@ -2011,21 +2013,24 @@ public final class MainActivity extends Activity {
                         }
                         Button save = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
                         save.setEnabled(false);
-                        setStatus("正在查找 " + typed + " 上的插件…");
+                        setStatus("正在核验 " + typed + " 上的插件…");
                         discoveryWorker.execute(() -> {
                             try {
-                                DiscoveryClient.Found found = new DiscoveryClient().probe(typed);
+                                DiscoveryClient discovery = new DiscoveryClient();
+                                DiscoveryClient.Found found = DiscoveryClient.isPrivateSecureUrl(typed)
+                                        ? discovery.probeHttps(typed) : discovery.probe(typed);
                                 main.post(() -> {
                                     if (!dialog.isShowing()) return;
                                     save.setEnabled(true);
-                                    saveDevice(existing, label, memo, found.url, address, dialog);
+                                    confirmSecureDevice(existing, label, memo,
+                                            found, address, dialog);
                                 });
                             } catch (Exception e) {
                                 main.post(() -> {
                                     if (!dialog.isShowing()) return;
                                     save.setEnabled(true);
                                     address.setError(e.getMessage());
-                                    setStatus("未找到该地址上的 PC 插件");
+                                    setStatus("未连到该地址上的新版 PC 插件");
                                 });
                             }
                         });
@@ -2033,10 +2038,43 @@ public final class MainActivity extends Activity {
                     }
                     try {
                         saveDevice(existing, label, memo,
-                                RemoteClient.normalizeUrl(typed), address, dialog);
+                                existing != null && typed.equals(existing.url)
+                                        ? existing.url : RemoteClient.normalizeUrl(typed),
+                                address, dialog);
                     } catch (Exception e) { address.setError(e.getMessage()); }
                 }));
         dialog.show();
+    }
+
+    private void confirmSecureDevice(DeviceStore.Device existing, String label, String memo,
+                                     DiscoveryClient.Found found, EditText address,
+                                     AlertDialog editor) {
+        if (found.secureUrl.isEmpty()) {
+            address.setError("请先更新这台 PC 的 dsh Remote 插件以启用 HTTPS");
+            return;
+        }
+        StringBuilder code = new StringBuilder();
+        for (int i = 0; i < 24; i += 4) {
+            if (i > 0) code.append(' ');
+            code.append(found.fingerprint, i, i + 4);
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("核对电脑身份")
+                .setMessage("请打开该 PC 插件的「手机连接」，核对下方身份码是否完全一致：\n\n"
+                        + code + "\n\n若不同，请取消，不要输入配对码。")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("一致，保存", (ignored, which) -> {
+                    String previousToken = existing == null ? "" : secrets.token(existing.url);
+                    boolean sameHost = existing != null && (existing.url.startsWith(
+                            "http://dsh-" + found.id + ".local:")
+                            || found.fingerprint.equals(secrets.fingerprint(existing.url)));
+                    secrets.saveFingerprint(found.secureUrl, found.fingerprint);
+                    saveDevice(existing, label, memo, found.secureUrl, address, editor);
+                    if (sameHost && !previousToken.isEmpty() && !editor.isShowing()) {
+                        try { secrets.saveToken(previousToken, found.secureUrl); }
+                        catch (Exception e) { setStatus("设备已保存，请重新输入配对码"); }
+                    }
+                }).show();
     }
 
     private void saveDevice(DeviceStore.Device existing, String label, String memo,
@@ -2055,6 +2093,7 @@ public final class MainActivity extends Activity {
         devices.save(list, updated.id);
         if (existing != null && !existing.url.equals(url)) {
             secrets.removeToken(existing.url);
+            secrets.removeFingerprint(existing.url);
             devices.selectWorkspace(updated.id, "");
             workspaceCache.remove(updated.id);
         }
@@ -2076,6 +2115,7 @@ public final class MainActivity extends Activity {
                     List<DeviceStore.Device> list = new ArrayList<>(devices.list());
                     list.removeIf(item -> item.id.equals(target.id));
                     secrets.removeToken(target.url);
+                    secrets.removeFingerprint(target.url);
                     deviceStatus.remove(target.id);
                     selected = list.isEmpty() ? null : list.get(0);
                     devices.save(list, selected == null ? "" : selected.id);

@@ -20,7 +20,7 @@ Open the [latest release](https://github.com/hpWu616/dsh-remote/releases/latest)
 
 1. In dsh's Plugins page, choose to install a third-party plugin and enter `github:hpWu616/dsh-remote` (or `https://github.com/hpWu616/dsh-remote`). The repository root is the plugin package, with `package.json` and `cordis.patch.yml`.
 2. Confirm that the plugin is enabled, then **fully quit and restart dsh**. Restart again after updating the plugin.
-3. Open “Plugins → Installed → Built-in plugin settings → Phone connection” (the dsh UI currently labels the last item “手机连接”). There you can allow or block new pairing, show or hide the eight-digit code, and see the PC address and port. Collapsing the panel leaves a small “手机连接” button.
+3. Open “Plugins → Installed → Built-in plugin settings → Phone connection” (the dsh UI currently labels the last item “手机连接”). There you can control pairing and see the PC's IPv4 address, HTTPS port, and identity code. Collapsing the panel leaves a small “手机连接” button.
 
 Install the plugin separately on every PC you want to connect. The new package name is `@hpwu616/dsh-remote-host`. If `@local/dsh-remote-host` is already installed, remove or disable it in dsh, fully quit dsh, and install the new package so both versions do not compete for the same port.
 
@@ -34,9 +34,9 @@ If dsh reports an installation timeout, run `git ls-remote https://github.com/hp
 
 ## Connect and pair
 
-1. The phone and PC must be on a **mutually reachable local network**. Ethernet for the PC and Wi-Fi for the phone are fine, provided the network does not isolate them. The eight-digit code cannot bridge separate, unreachable subnets.
-2. Open the app's top-left menu and tap “发现” (Discover), then select the PC. Alternatively, tap Add device and enter that PC's IPv4 address and port from the Phone connection panel, for example `http://192.168.1.20:19388`. The app probes the plugin at that address and stores its unique host name. Give each PC its own name and note. Discovery and directed probing require a mutually reachable subnet and UDP 19389.
-3. On the PC, enable “允许新手机配对” (Allow new phones to pair) under “手机连接”, then tap “显示” (Show) for the eight-digit code. Enter it for that PC in the app and tap “配对设备” (Pair device). Pair each PC separately.
+1. The phone must be able to reach the PC's address and HTTPS port. Manually added PCs can be on different routed private subnets. The eight-digit code cannot cross an isolated network by itself.
+2. Tap Add device and enter the PC's `https://IPv4:19390`, for example `https://10.15.223.91:19390`. Compare the identity code shown on the phone with the code in the PC's Phone connection panel, then confirm only if they match. Give each PC its own name and note. An old HTTP address also works as input: the app tries directed discovery and then the default HTTPS port.
+3. On the PC, enable “允许新手机配对” (Allow new phones to pair) under “手机连接”, then tap “显示” (Show) for the eight-digit code. Enter it for that PC in the app and tap “配对设备” (Pair device). Verify and pair each PC separately.
 4. You may hide the code or disable new pairing afterward. Previously paired devices are checked automatically when the app is reopened. The app does not maintain a live connection while in the background.
 
 ## Everyday use
@@ -49,12 +49,13 @@ If dsh reports an installation timeout, run `git ls-remote https://github.com/hp
 
 ## Troubleshooting
 
-- **No PC found:** Restart dsh after installing the plugin. Check network isolation and the PC firewall's private-network rules for TCP 19388, UDP 19389, and UDP 5353.
+- **No PC found:** Automatic discovery needs a broadcast LAN. Across subnets, enter `https://PC-IPv4:19390` manually. Confirm the plugin has been updated and dsh restarted, and that TCP 19390 is reachable. A browser response of 401 from the old `http://PC-IPv4:19388/v1/health` means the plugin is reachable but the browser is not paired.
+- **Saved `.local` address is offline:** Edit the device and enter its `https://IPv4:19390` address. Compare identity codes and save. The app migrates an existing token when the PC identity matches.
 - **Plugin installer says no write permission:** If the installation details show `ERR_PNPM_EPERM` while renaming the old `@local/dsh-remote-host` directory, remove or disable the old plugin in dsh, fully quit dsh, and install the new package. Do not edit the dsh profile by hand.
 - **Code shown, but no connection:** The code authenticates a reachable PC; it does not establish a network route. The address and port shown in the PC panel help diagnose reachability.
 - **APK will not update:** Debug signatures from different builds may differ. Preserve any phone-side data you need before uninstalling the old app, installing the release APK, and pairing again.
 
-The plugin can execute operations on the PC. Use it only on a trusted LAN; its current local HTTP connection has no transport encryption. **Do not expose its port to the public internet.** See [API and network details](docs/API.md).
+The plugin can execute operations on the PC. Manually added devices use fingerprint-verified HTTPS; legacy HTTP 19388 remains for compatibility and LAN discovery. **Do not expose any plugin port to the public internet.** See [API and network details](docs/API.md).
 
 ## Build from source
 

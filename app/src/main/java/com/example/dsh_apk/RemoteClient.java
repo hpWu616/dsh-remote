@@ -12,9 +12,18 @@ import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.URL;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 
 final class RemoteClient {
     static final class ModelChoice {
@@ -251,6 +260,9 @@ final class RemoteClient {
     }
 
     private volatile HttpURLConnection active;
+    private SecretStore secretStore;
+
+    void setSecretStore(SecretStore value) { secretStore = value; }
 
     static String normalizeUrl(String input) throws Exception {
         URI uri = new URI(input.trim());
@@ -538,7 +550,46 @@ final class RemoteClient {
     }
 
     private HttpURLConnection open(String url, String token) throws Exception {
-        HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
+        URL target = new URL(url);
+        HttpURLConnection connection = (HttpURLConnection) target.openConnection();
+        if (connection instanceof HttpsURLConnection) {
+            String base = target.getProtocol() + "://" + target.getHost() + ":" + target.getPort();
+            String expected = secretStore == null ? "" : secretStore.fingerprint(base);
+            if (!expected.matches("[a-f0-9]{64}")) {
+                throw new IOException("请先核对 PC 身份码并保存设备");
+            }
+            X509TrustManager trust = new X509TrustManager() {
+                @Override public X509Certificate[] getAcceptedIssuers() {
+                    return new X509Certificate[0];
+                }
+                @Override public void checkClientTrusted(X509Certificate[] chain, String authType)
+                        throws CertificateException {
+                    throw new CertificateException("客户端证书不可用");
+                }
+                @Override public void checkServerTrusted(X509Certificate[] chain, String authType)
+                        throws CertificateException {
+                    if (chain == null || chain.length == 0) {
+                        throw new CertificateException("电脑未提供 HTTPS 证书");
+                    }
+                    try {
+                        chain[0].checkValidity();
+                        byte[] hash = MessageDigest.getInstance("SHA-256")
+                                .digest(chain[0].getEncoded());
+                        StringBuilder actual = new StringBuilder();
+                        for (byte value : hash) actual.append(String.format("%02x", value & 255));
+                        if (!expected.equals(actual.toString())) {
+                            throw new CertificateException("电脑身份码已改变，请重新核对");
+                        }
+                    } catch (CertificateException e) { throw e; }
+                    catch (Exception e) { throw new CertificateException(e); }
+                }
+            };
+            SSLContext context = SSLContext.getInstance("TLS");
+            context.init(null, new TrustManager[]{trust}, new SecureRandom());
+            HttpsURLConnection secure = (HttpsURLConnection) connection;
+            secure.setSSLSocketFactory(context.getSocketFactory());
+            secure.setHostnameVerifier((host, session) -> host.equals(target.getHost()));
+        }
         connection.setConnectTimeout(5000);
         connection.setReadTimeout(0);
         connection.setInstanceFollowRedirects(false);

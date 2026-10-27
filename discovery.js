@@ -6,8 +6,12 @@ const MDNS_PORT = 5353;
 const MDNS_GROUP = '224.0.0.251';
 
 function privateAddress(address) {
-  const parts = address.split('.').map(Number);
-  return parts.length === 4 && (parts[0] === 10
+  const source = address.split('.');
+  if (source.length !== 4 || source.some(value => !/^(0|[1-9][0-9]{0,2})$/.test(value))) {
+    return false;
+  }
+  const parts = source.map(Number);
+  return parts.every(value => value <= 255) && (parts[0] === 10
     || (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31)
     || (parts[0] === 192 && parts[1] === 168));
 }
@@ -43,6 +47,11 @@ function sameSubnet(a, b, mask) {
   const right = octets(b);
   const bits = octets(mask);
   return left.every((value, index) => (value & bits[index]) === (right[index] & bits[index]));
+}
+
+export function allowsDiscoveryReply(address, interfaces, direct) {
+  return interfaces.some(item => sameSubnet(address, item.address, item.netmask))
+    || direct === true && privateAddress(address);
 }
 
 function dnsName(name) {
@@ -103,7 +112,7 @@ export function hostAnswer(host, address) {
   return Buffer.concat([header, name, record, Buffer.from(octets(address))]);
 }
 
-export function startDiscovery(pairing, port) {
+export function startDiscovery(pairing, port, securePort, fingerprint) {
   const host = `dsh-${pairing.hostId}.local`;
   const discovery = dgram.createSocket({ type: 'udp4', reuseAddr: true });
   const mdns = dgram.createSocket({ type: 'udp4', reuseAddr: true });
@@ -120,16 +129,18 @@ export function startDiscovery(pairing, port) {
     let request;
     try { request = JSON.parse(packet.toString('utf8')); } catch { return; }
     if (request.type !== 'dsh-discover' || !/^[a-f0-9]{16,64}$/.test(request.nonce)) return;
-    if (!lanInterfaces().some(item => sameSubnet(remote.address, item.address, item.netmask))) return;
+    if (!allowsDiscoveryReply(remote.address, lanInterfaces(), request.direct)) return;
     const response = Buffer.from(JSON.stringify({ type: 'dsh-host',
-      nonce: request.nonce, id: pairing.hostId, name: hostname(), host, port }));
+      nonce: request.nonce, id: pairing.hostId, name: hostname(), host, port,
+      securePort, fingerprint }));
     discovery.send(response, remote.port, remote.address);
   });
   discovery.bind(DISCOVERY_PORT, () => {
     discovery.setBroadcast(true);
     const beacon = () => {
       const payload = Buffer.from(JSON.stringify({ type: 'dsh-host',
-        id: pairing.hostId, name: hostname(), host, port }));
+        id: pairing.hostId, name: hostname(), host, port,
+        securePort, fingerprint }));
       for (const item of lanInterfaces()) {
         discovery.send(payload, DISCOVERY_PORT,
           broadcastAddress(item.address, item.netmask));
