@@ -85,9 +85,9 @@ window.__ModuleLoader__.load({
             marginTop: 12, paddingTop: 10, fontSize: 11, lineHeight: 1.7 } },
           h('div', { style: { opacity: 0.65, marginBottom: 3 } }, '电脑网络'),
           details?.host && h('div', { style: { overflowWrap: 'anywhere', marginBottom: 5,
-            fontWeight: 600 } }, `手机设备地址  http://${details.host}:${details.port}`),
+            fontWeight: 600 } }, `电脑名称  ${details.host}`),
           details?.fingerprint && h('div', { style: { marginBottom: 6 } },
-            h('div', null, `HTTPS 端口  ${details.securePort}`),
+            h('div', null, `HTTPS 端口  ${details.port}`),
             h('div', { style: { fontWeight: 600, letterSpacing: 1,
               userSelect: 'text' } }, `电脑身份码  ${details.fingerprint.slice(0, 24)
               .match(/.{1,4}/g).join(' ')}`)),
@@ -97,8 +97,7 @@ window.__ModuleLoader__.load({
             },
             h('div', null, `IPv4  ${network.address}`),
             h('div', null, `网段  ${network.subnet}`),
-            h('div', null, `HTTPS 地址  https://${network.address}:${details.securePort}`),
-            h('div', null, `旧版 HTTP  ${network.address}:${details.port}`)))
+            h('div', null, `HTTPS 地址  https://${network.address}:${details.port}`)))
             : h('div', null, '未检测到局域网 IPv4 地址')),
           h('div', { style: { marginTop: 4, fontWeight: 600 } },
             details ? `服务端口  ${details.port}` : '服务端口  获取中'),

@@ -35,7 +35,7 @@ If dsh reports an installation timeout, run `git ls-remote https://github.com/hp
 ## Connect and pair
 
 1. The phone must be able to reach the PC's address and HTTPS port. Manually added PCs can be on different routed private subnets. The eight-digit code cannot cross an isolated network by itself.
-2. Tap Add device and enter the PC's `https://IPv4:19390`, for example `https://10.15.223.91:19390`. Compare the identity code shown on the phone with the code in the PC's Phone connection panel, then confirm only if they match. Give each PC its own name and note. An old HTTP address also works as input: the app tries directed discovery and then the default HTTPS port.
+2. Tap Add device and enter the PC's `https://IPv4:19390`, for example `https://10.15.223.91:19390`. Compare the identity code shown on the phone with the code in the PC's Phone connection panel, then confirm only if they match. Give each PC its own name and note. Replace saved HTTP addresses with the HTTPS address shown on the PC, then verify the identity code again.
 3. On the PC, enable “允许新手机配对” (Allow new phones to pair) under “手机连接”, then tap “显示” (Show) for the eight-digit code. Enter it for that PC in the app and tap “配对设备” (Pair device). Verify and pair each PC separately.
 4. You may hide the code or disable new pairing afterward. Previously paired devices are checked automatically when the app is reopened. The app does not maintain a live connection while in the background.
 
@@ -49,13 +49,13 @@ If dsh reports an installation timeout, run `git ls-remote https://github.com/hp
 
 ## Troubleshooting
 
-- **No PC found:** Automatic discovery needs a broadcast LAN. Across subnets, enter `https://PC-IPv4:19390` manually. Confirm the plugin has been updated and dsh restarted, and that TCP 19390 is reachable. A browser response of 401 from the old `http://PC-IPv4:19388/v1/health` means the plugin is reachable but the browser is not paired.
+- **No PC found:** Automatic discovery needs a broadcast LAN. Across subnets, enter `https://PC-IPv4:19390` manually. Confirm the plugin has been updated and dsh restarted, and that TCP 19390 is reachable. A browser may warn about the self-signed certificate at `https://PC-IPv4:19390/v1/health`; verify the identity code in the app before pairing.
 - **Saved `.local` address is offline:** Edit the device and enter its `https://IPv4:19390` address. Compare identity codes and save. The app migrates an existing token when the PC identity matches.
 - **Plugin installer says no write permission:** If the installation details show `ERR_PNPM_EPERM` while renaming the old `@local/dsh-remote-host` directory, remove or disable the old plugin in dsh, fully quit dsh, and install the new package. Do not edit the dsh profile by hand.
 - **Code shown, but no connection:** The code authenticates a reachable PC; it does not establish a network route. The address and port shown in the PC panel help diagnose reachability.
 - **APK will not update:** Debug signatures from different builds may differ. Preserve any phone-side data you need before uninstalling the old app, installing the release APK, and pairing again.
 
-The plugin can execute operations on the PC. Manually added devices use fingerprint-verified HTTPS; legacy HTTP 19388 remains for compatibility and LAN discovery. **Do not expose any plugin port to the public internet.** See [API and network details](docs/API.md).
+The plugin can execute operations on the PC. All device connections use fingerprint-verified HTTPS. **Do not expose any plugin port to the public internet.** See [API and network details](docs/API.md).
 
 ## Build from source
 

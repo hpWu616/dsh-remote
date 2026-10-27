@@ -2,7 +2,7 @@
 
 [中文使用说明](../README.md) · [English user guide](../README.en.md)
 
-The Android app talks to the dsh Host plugin on each PC. The plugin listens on TCP 19390 for HTTPS and TCP 19388 for legacy HTTP, uses UDP 19389 for LAN discovery, and advertises an mDNS `dsh-<device-id>.local` name on UDP 5353. The PC's existing dsh web server is separate from these listeners.
+The Android app talks to the dsh Host plugin on each PC. The plugin listens on TCP 19390 for HTTPS, uses UDP 19389 for LAN discovery, and advertises an mDNS `dsh-<device-id>.local` name on UDP 5353. The PC's existing dsh web server is separate from these listeners.
 
 ## Pairing and transport
 
@@ -11,9 +11,9 @@ The Android app talks to the dsh Host plugin on each PC. The plugin listens on T
 3. Each PC generates a separate self-signed TLS certificate and stores its private key in dsh's credential service. On first manual connection, the phone displays the certificate's first 96 fingerprint bits; the user compares them with the PC panel. The phone pins the full SHA-256 certificate fingerprint and stores each device token with Android Keystore protection.
 4. All remaining endpoints require `Authorization: Bearer <token>`.
 
-Legacy LAN HTTP is not encrypted. The endpoint can invoke PC operations, including commands; do not forward either listener to the internet. Manual HTTPS connection works across reachable private subnets and does not depend on mDNS or UDP. A matching code does not provide routing or a relay.
+The endpoint can invoke PC operations, including commands; do not forward the HTTPS listener to the internet. Manual HTTPS connection works across reachable private subnets and does not depend on mDNS or UDP. A matching code does not provide routing or a relay.
 
-## HTTP endpoints
+## HTTPS endpoints
 
 | Endpoint | Purpose |
 | --- | --- |
@@ -43,6 +43,6 @@ The command endpoint permits one command at a time, with a 120-second runtime li
 
 ## Local network checks
 
-If discovery fails, first confirm the plugin is enabled and dsh has been restarted. Then check whether the router allows Wi-Fi clients to reach wired PCs and whether the PC firewall allows the three ports above on the private network. The PC plugin panel displays its current IPv4 address, subnet, and port for diagnosis.
+If discovery fails, first confirm the plugin is enabled and dsh has been restarted. Then check whether the router allows Wi-Fi clients to reach wired PCs and whether the PC firewall allows TCP 19390 and UDP 19389/5353 on the private network. The PC plugin panel displays its current IPv4 address, subnet, and port for diagnosis.
 
-The Android app accepts manually entered private HTTPS IPv4 addresses after certificate identity confirmation, discovered `dsh-<device-id>.local` hosts, and USB loopback. A manual HTTP IPv4 address triggers directed discovery with an HTTPS fallback. USB debugging can use `adb reverse tcp:19388 tcp:19388` and `http://127.0.0.1:19388`.
+The Android app accepts private HTTPS IPv4 addresses after certificate identity confirmation. LAN discovery advertises the same HTTPS port. Saved HTTP addresses must be edited and verified again. USB debugging can use `adb reverse tcp:19390 tcp:19390` and `https://127.0.0.1:19390`.

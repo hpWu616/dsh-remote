@@ -2,4 +2,4 @@
     - id: dsh-remote-host
       name: '@hpwu616/dsh-remote-host'
       config:
-        port: 19388
+        securePort: 19390

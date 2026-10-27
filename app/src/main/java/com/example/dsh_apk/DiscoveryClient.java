@@ -35,26 +35,21 @@ final class DiscoveryClient {
     static final class Found {
         final String name;
         final String id;
-        final String url;
-        final String addressUrl;
         final String secureUrl;
         final String fingerprint;
 
-        Found(String name, String id, String url, String addressUrl,
-              String secureUrl, String fingerprint) {
+        Found(String name, String id, String secureUrl, String fingerprint) {
             this.name = name;
             this.id = id;
-            this.url = url;
-            this.addressUrl = addressUrl;
             this.secureUrl = secureUrl;
             this.fingerprint = fingerprint;
         }
     }
 
-    static boolean isPrivateAddressUrl(String input) {
+    static boolean isPrivateSecureUrl(String input) {
         try {
             URI uri = new URI(input.trim());
-            if (!"http".equals(uri.getScheme()) || uri.getHost() == null
+            if (!"https".equals(uri.getScheme()) || uri.getHost() == null
                     || uri.getPort() < 1 || uri.getPort() > 65535
                     || uri.getRawUserInfo() != null || uri.getRawQuery() != null
                     || uri.getRawFragment() != null
@@ -68,15 +63,12 @@ final class DiscoveryClient {
                 octets[i] = Integer.parseInt(parts[i]);
                 if (octets[i] > 255) return false;
             }
-            return octets[0] == 10 || octets[0] == 172
+            return octets[0] == 127 && octets[1] == 0
+                    && octets[2] == 0 && octets[3] == 1
+                    || octets[0] == 10 || octets[0] == 172
                     && octets[1] >= 16 && octets[1] <= 31
                     || octets[0] == 192 && octets[1] == 168;
         } catch (Exception ignored) { return false; }
-    }
-
-    static boolean isPrivateSecureUrl(String input) {
-        if (input == null || !input.startsWith("https://")) return false;
-        return isPrivateAddressUrl("http://" + input.substring("https://".length()));
     }
 
     Found probeHttps(String input) throws Exception {
@@ -110,37 +102,10 @@ final class DiscoveryClient {
             byte[] hash = MessageDigest.getInstance("SHA-256").digest(certificate.getEncoded());
             StringBuilder fingerprint = new StringBuilder();
             for (byte value : hash) fingerprint.append(String.format("%02x", value & 255));
-            String host = "dsh-" + match.group(1) + ".local";
-            return new Found("电脑", match.group(1), "http://" + host + ":19388",
-                    "", "https://" + uri.getHost() + ":" + uri.getPort(),
+            return new Found("电脑", match.group(1),
+                    "https://" + uri.getHost() + ":" + uri.getPort(),
                     fingerprint.toString());
         }
-    }
-
-    Found probe(String input) throws Exception {
-        if (!isPrivateAddressUrl(input)) {
-            throw new IllegalArgumentException("请输入局域网电脑地址，例如 http://192.168.1.20:19388");
-        }
-        InetAddress target = InetAddress.getByName(new URI(input.trim()).getHost());
-        String nonce = newNonce();
-        byte[] request = new JSONObject().put("type", "dsh-discover")
-                .put("nonce", nonce).put("direct", true).toString()
-                .getBytes(StandardCharsets.UTF_8);
-        try (DatagramSocket socket = new DatagramSocket()) {
-            socket.setSoTimeout(800);
-            for (int attempt = 0; attempt < 3; attempt++) {
-                socket.send(new DatagramPacket(request, request.length, target, 19389));
-                try {
-                    byte[] buffer = new byte[1024];
-                    DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
-                    socket.receive(packet);
-                    if (!packet.getAddress().equals(target)) continue;
-                    Found found = parseReply(packet, nonce, true);
-                    if (found != null) return found;
-                } catch (java.net.SocketTimeoutException ignored) { /* Retry. */ }
-            }
-        }
-        return probeHttps("https://" + target.getHostAddress() + ":19390");
     }
 
     private static String newNonce() {
@@ -159,7 +124,6 @@ final class DiscoveryClient {
             String id = reply.getString("id");
             int port = reply.getInt("port");
             String host = reply.getString("host");
-            int securePort = reply.optInt("securePort", 0);
             String fingerprint = reply.optString("fingerprint", "");
             if (!"dsh-host".equals(reply.getString("type"))
                     || (requireNonce && !reply.has("nonce"))
@@ -167,14 +131,10 @@ final class DiscoveryClient {
                     || !id.matches("[a-f0-9]{12}")
                     || !host.equals("dsh-" + id + ".local")
                     || port < 1 || port > 65535) return null;
-            if (securePort != 0 && (securePort < 1 || securePort > 65535
-                    || !fingerprint.matches("[a-f0-9]{64}"))) return null;
+            if (!fingerprint.matches("[a-f0-9]{64}")) return null;
             String address = packet.getAddress().getHostAddress();
             return new Found(reply.optString("name", "电脑"), id,
-                    "http://" + host + ":" + port,
-                    "http://" + address + ":" + port,
-                    securePort == 0 ? "" : "https://" + address + ":" + securePort,
-                    fingerprint);
+                    "https://" + address + ":" + port, fingerprint);
         } catch (Exception ignored) { return null; }
     }
 
@@ -234,7 +194,7 @@ final class DiscoveryClient {
                     catch (java.net.SocketTimeoutException ignored) { break; }
                     Found item = parseReply(packet, nonce, false);
                     if (item != null && found.stream().noneMatch(existing ->
-                            existing.url.equals(item.url))) found.add(item);
+                            existing.secureUrl.equals(item.secureUrl))) found.add(item);
                 }
             }
         } finally {

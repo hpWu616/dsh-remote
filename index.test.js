@@ -9,17 +9,39 @@ import { allowsDiscoveryReply, hostAnswer, isHostQuery, lanNetworks } from './di
 import { createIdentity } from './tls-identity.js';
 
 const token = 'x'.repeat(64);
+const testIdentity = createIdentity('0123456789ab');
+function fetch(url, options = {}) {
+  return new Promise((resolve, reject) => {
+    const target = new URL(url);
+    const request = https.request(target, {
+      method: options.method || 'GET', headers: options.headers || {},
+      rejectUnauthorized: false,
+    }, response => {
+      const chunks = [];
+      response.on('data', chunk => chunks.push(chunk));
+      response.on('end', () => resolve(new Response(
+        response.statusCode === 204 ? null : Buffer.concat(chunks),
+        { status: response.statusCode, headers: response.headers })));
+      response.on('error', reject);
+    });
+    request.on('error', reject);
+    request.end(options.body);
+  });
+}
 const pairing = { code: '12345678', async claim(code) {
   if (code !== this.code) return false;
   this.code = '87654321';
   return true;
 } };
-const server = createServer(token, pairing);
+test('remote server requires a TLS identity', () => {
+  assert.throws(() => createServer(token, pairing), /HTTPS identity is required/);
+});
+const server = createServer(token, pairing, null, null, null, testIdentity);
 let base;
 
 before(async () => {
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  base = `http://127.0.0.1:${server.address().port}`;
+  base = `https://127.0.0.1:${server.address().port}`;
 });
 after(async () => {
   await new Promise(resolve => server.close(resolve));
@@ -77,7 +99,7 @@ test('dsh Client Connection exposes the current pairing code', async () => {
     credentials,
     connection: { fetch: { register: value => { routes.set(value.path, value); } } },
     effect: value => effects.push(value),
-  }, { lanHost: '10.7.32.43', port: 19388 });
+  }, { securePort: 19390 });
   const route = routes.get('/api/dsh-remote-pair-code');
   assert.ok(route);
   assert.deepEqual(route.methods, ['GET']);
@@ -102,6 +124,8 @@ test('dsh Client Connection exposes the current pairing code', async () => {
   const details = await (await route.fetch()).json();
   assert.equal(details.lanHost, '自动发现');
   assert.equal(details.host, null);
+  assert.equal(details.port, 19390);
+  assert.equal('securePort' in details, false);
   assert.ok(Array.isArray(details.networks));
 });
 
@@ -133,10 +157,10 @@ test('workspace endpoint lists all registered workspaces and creates one', async
       entries.splice(index, 1);
     },
   };
-  const workspaceServer = createServer(token, pairing, bridge);
+  const workspaceServer = createServer(token, pairing, bridge, null, null, testIdentity);
   await new Promise(resolve => workspaceServer.listen(0, '127.0.0.1', resolve));
   try {
-    const url = `http://127.0.0.1:${workspaceServer.address().port}/v1/workspaces`;
+    const url = `https://127.0.0.1:${workspaceServer.address().port}/v1/workspaces`;
     const headers = { Authorization: `Bearer ${token}` };
     assert.equal((await fetch(url)).status, 401);
     const listed = await (await fetch(url, { headers })).json();
@@ -146,7 +170,7 @@ test('workspace endpoint lists all registered workspaces and creates one', async
       body: JSON.stringify({ name: 'B' }) });
     assert.equal(created.status, 201);
     assert.equal((await created.json()).workspace.title, 'B');
-    const directories = `http://127.0.0.1:${workspaceServer.address().port}/v1/directories?path=`
+    const directories = `https://127.0.0.1:${workspaceServer.address().port}/v1/directories?path=`
       + encodeURIComponent(process.cwd());
     assert.equal((await fetch(directories)).status, 401);
     const folders = await (await fetch(directories, { headers })).json();
@@ -308,10 +332,10 @@ test('authenticated mobile chat routes scope sessions to a workspace', async () 
         selected: { provider: 'official', model: 'chat' }, failures: [] }; },
       selectModel: async (id, provider, model) => {
         calls.push(['selectModel', id, provider, model]); return { provider, model }; },
-    });
+    }, null, testIdentity);
   await new Promise(resolve => chatServer.listen(0, '127.0.0.1', resolve));
   try {
-    const url = `http://127.0.0.1:${chatServer.address().port}`;
+    const url = `https://127.0.0.1:${chatServer.address().port}`;
     const headers = { Authorization: `Bearer ${token}` };
     assert.equal((await fetch(`${url}/v1/workspaces/space/sessions`)).status, 401);
     assert.equal((await fetch(`${url}/v1/workspaces/missing/sessions`, { headers })).status, 404);
@@ -527,9 +551,10 @@ test('mobile mode, reasoning, and scheduled task routes use dsh services', async
     },
     remove: async () => ({ deleted: true }),
   };
-  const instance = createServer(token, pairing, { path: () => '/tmp' }, chats, schedules);
+  const instance = createServer(token, pairing, { path: () => '/tmp' }, chats, schedules,
+    testIdentity);
   await new Promise(resolve => instance.listen(0, '127.0.0.1', resolve));
-  const url = `http://127.0.0.1:${instance.address().port}`;
+  const url = `https://127.0.0.1:${instance.address().port}`;
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
   try {
     assert.equal((await fetch(`${url}/v1/modes`, { headers }).then(r => r.json()))

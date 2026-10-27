@@ -112,7 +112,7 @@ export function hostAnswer(host, address) {
   return Buffer.concat([header, name, record, Buffer.from(octets(address))]);
 }
 
-export function startDiscovery(pairing, port, securePort, fingerprint) {
+export function startDiscovery(pairing, port, fingerprint) {
   const host = `dsh-${pairing.hostId}.local`;
   const discovery = dgram.createSocket({ type: 'udp4', reuseAddr: true });
   const mdns = dgram.createSocket({ type: 'udp4', reuseAddr: true });
@@ -132,7 +132,7 @@ export function startDiscovery(pairing, port, securePort, fingerprint) {
     if (!allowsDiscoveryReply(remote.address, lanInterfaces(), request.direct)) return;
     const response = Buffer.from(JSON.stringify({ type: 'dsh-host',
       nonce: request.nonce, id: pairing.hostId, name: hostname(), host, port,
-      securePort, fingerprint }));
+      fingerprint }));
     discovery.send(response, remote.port, remote.address);
   });
   discovery.bind(DISCOVERY_PORT, () => {
@@ -140,7 +140,7 @@ export function startDiscovery(pairing, port, securePort, fingerprint) {
     const beacon = () => {
       const payload = Buffer.from(JSON.stringify({ type: 'dsh-host',
         id: pairing.hostId, name: hostname(), host, port,
-        securePort, fingerprint }));
+        fingerprint }));
       for (const item of lanInterfaces()) {
         discovery.send(payload, DISCOVERY_PORT,
           broadcastAddress(item.address, item.netmask));

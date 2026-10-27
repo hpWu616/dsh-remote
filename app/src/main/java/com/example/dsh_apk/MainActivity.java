@@ -116,7 +116,8 @@ public final class MainActivity extends Activity {
         @Override public void run() {
             if (!foreground) return;
             for (DeviceStore.Device device : devices.list()) {
-                if (!secrets.token(device.url).isEmpty()) {
+                if (DiscoveryClient.isPrivateSecureUrl(device.url)
+                        && !secrets.token(device.url).isEmpty()) {
                     probes.execute(() -> loadWorkspaces(device));
                 }
             }
@@ -560,7 +561,10 @@ public final class MainActivity extends Activity {
         renderWorkspaces();
         renderSessions();
         setStatus("已选择 " + device.name);
-        if (!secrets.token(device.url).isEmpty()) checkDevice(device);
+        if (!DiscoveryClient.isPrivateSecureUrl(device.url)
+                || secrets.fingerprint(device.url).isEmpty()) {
+            editDevice(device);
+        } else if (!secrets.token(device.url).isEmpty()) checkDevice(device);
     }
 
     private void renderSelected() {
@@ -2003,8 +2007,7 @@ public final class MainActivity extends Activity {
                     if (label.isEmpty()) { name.setError("请输入设备名称"); return; }
                     String typed = address.getText().toString().trim();
                     String memo = note.getText().toString().trim();
-                    if (DiscoveryClient.isPrivateAddressUrl(typed)
-                            || DiscoveryClient.isPrivateSecureUrl(typed)) {
+                    if (DiscoveryClient.isPrivateSecureUrl(typed)) {
                         if (Build.VERSION.SDK_INT >= 37 && checkSelfPermission(LOCAL_NETWORK)
                                 != PackageManager.PERMISSION_GRANTED) {
                             pendingAction = 5;
@@ -2017,8 +2020,7 @@ public final class MainActivity extends Activity {
                         discoveryWorker.execute(() -> {
                             try {
                                 DiscoveryClient discovery = new DiscoveryClient();
-                                DiscoveryClient.Found found = DiscoveryClient.isPrivateSecureUrl(typed)
-                                        ? discovery.probeHttps(typed) : discovery.probe(typed);
+                                DiscoveryClient.Found found = discovery.probeHttps(typed);
                                 main.post(() -> {
                                     if (!dialog.isShowing()) return;
                                     save.setEnabled(true);
@@ -2036,12 +2038,7 @@ public final class MainActivity extends Activity {
                         });
                         return;
                     }
-                    try {
-                        saveDevice(existing, label, memo,
-                                existing != null && typed.equals(existing.url)
-                                        ? existing.url : RemoteClient.normalizeUrl(typed),
-                                address, dialog);
-                    } catch (Exception e) { address.setError(e.getMessage()); }
+                    address.setError("请输入 PC 显示的 HTTPS 地址，例如 https://192.168.1.20:19390");
                 }));
         dialog.show();
     }
@@ -2131,7 +2128,9 @@ public final class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= 37 && checkSelfPermission(LOCAL_NETWORK)
                 != PackageManager.PERMISSION_GRANTED) return;
         for (DeviceStore.Device device : devices.list()) {
-            if (!secrets.token(device.url).isEmpty()) checkDevice(device);
+            if (DiscoveryClient.isPrivateSecureUrl(device.url)
+                    && !secrets.fingerprint(device.url).isEmpty()
+                    && !secrets.token(device.url).isEmpty()) checkDevice(device);
         }
     }
 
@@ -2153,43 +2152,18 @@ public final class MainActivity extends Activity {
                 main.post(() -> {
                     List<DeviceStore.Device> list = new ArrayList<>(devices.list());
                     int added = 0;
-                    boolean changed = false;
                     for (DiscoveryClient.Found item : found) {
                         boolean known = false;
-                        for (int i = 0; i < list.size(); i++) {
-                            DeviceStore.Device saved = list.get(i);
-                            if (saved.url.equals(item.url)) {
-                                known = true;
-                                break;
-                            }
-                            if (saved.url.equals(item.addressUrl)) {
-                                try {
-                                    String oldToken = secrets.token(saved.url);
-                                    if (!oldToken.isEmpty()) {
-                                        secrets.saveToken(oldToken, item.url);
-                                        secrets.removeToken(saved.url);
-                                    }
-                                    DeviceStore.Device moved = new DeviceStore.Device(saved.id,
-                                            saved.name, saved.note, item.url);
-                                    list.set(i, moved);
-                                    if (selected != null && selected.id.equals(saved.id)) {
-                                        selected = moved;
-                                    }
-                                    changed = true;
-                                } catch (Exception ignored) {
-                                    // Keep the working address if token migration failed.
-                                }
-                                known = true;
-                                break;
-                            }
+                        for (DeviceStore.Device saved : list) {
+                            if (saved.url.equals(item.secureUrl)) { known = true; break; }
                         }
                         if (!known) {
                             list.add(new DeviceStore.Device(UUID.randomUUID().toString(),
-                                    item.name, "自动发现", item.url));
+                                    item.name, "待核对电脑身份", item.secureUrl));
                             added++;
                         }
                     }
-                    if (added > 0 || changed) {
+                    if (added > 0) {
                         if (selected == null) selected = list.get(0);
                         devices.save(list, selected.id);
                         renderDeviceRows();
@@ -2197,7 +2171,7 @@ public final class MainActivity extends Activity {
                     }
                     if (manual) setStatus(found.isEmpty() ? "未发现电脑，请检查 PC 插件和局域网"
                             : "发现 " + found.size() + " 台电脑，新增 " + added + " 台");
-                    else if (added > 0 || changed) setStatus("已自动同步局域网设备");
+                    else if (added > 0) setStatus("发现电脑；点击设备核对身份后配对");
                     scanning = false;
                 });
             } catch (Exception e) {

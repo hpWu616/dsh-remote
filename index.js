@@ -1,4 +1,3 @@
-import http from 'node:http';
 import https from 'node:https';
 import { execFile, spawn } from 'node:child_process';
 import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
@@ -60,6 +59,9 @@ export function createServer(token, pairing, workspaces, chats, schedules, tlsId
   if (typeof token !== 'string' || token.length < 32) {
     throw new Error('Remote token must contain at least 32 characters');
   }
+  if (!tlsIdentity?.key || !tlsIdentity?.certificate) {
+    throw new Error('HTTPS identity is required');
+  }
   const children = new Set();
   const attempts = new Map();
   const handler = async (req, res) => {
@@ -116,7 +118,7 @@ export function createServer(token, pairing, workspaces, chats, schedules, tlsId
     if (req.method === 'GET' && req.url?.startsWith('/v1/models')) {
       if (!chats?.models) return reply(res, 503, 'Model catalog unavailable');
       let address;
-      try { address = new URL(req.url, 'http://localhost'); }
+      try { address = new URL(req.url, 'https://localhost'); }
       catch { return reply(res, 400, 'Invalid model request'); }
       if (address.pathname !== '/v1/models') return reply(res, 404, 'Not found');
       const sessionId = address.searchParams.get('sessionId') || '';
@@ -211,7 +213,7 @@ export function createServer(token, pairing, workspaces, chats, schedules, tlsId
     }
     if (req.method === 'GET' && req.url?.startsWith('/v1/directories?')) {
       if (!workspaces?.browse) return reply(res, 503, 'Directory browser unavailable');
-      const requested = new URL(req.url, 'http://localhost').searchParams.get('path') || '';
+      const requested = new URL(req.url, 'https://localhost').searchParams.get('path') || '';
       if (requested.length > 2048) return reply(res, 400, 'Directory path too long');
       try {
         const directory = await workspaces.browse(requested);
@@ -502,10 +504,8 @@ export function createServer(token, pairing, workspaces, chats, schedules, tlsId
       if (!res.writableEnded) child.kill();
     });
   };
-  const server = tlsIdentity
-    ? https.createServer({ key: tlsIdentity.key,
-      cert: tlsIdentity.certificate }, handler)
-    : http.createServer(handler);
+  const server = https.createServer({ key: tlsIdentity.key,
+    cert: tlsIdentity.certificate }, handler);
   server.on('close', () => {
     for (const child of children) child.kill();
   });
@@ -812,18 +812,15 @@ export function scheduleBridge(ctx) {
 export function apply(ctx, config = {}) {
   let pairing;
   let tlsIdentity;
-  const port = Number(config.port ?? 19388);
-  const securePort = Number(config.securePort ?? 19390);
-  if (!Number.isInteger(port) || port < 1 || port > 65535
-      || !Number.isInteger(securePort) || securePort < 1 || securePort > 65535
-      || port === securePort) {
+  const port = Number(config.securePort ?? 19390);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
     throw new Error('DSH_REMOTE_PORT must be a valid TCP port');
   }
   ctx.connection.fetch.register({
     path: '/api/dsh-remote-pair-code', methods: ['GET'], requestBody: 'buffered',
     fetch: () => new Response(JSON.stringify({ code: pairing?.enabled ? pairing.code : null,
       enabled: pairing?.enabled ?? false, lanHost: '自动发现',
-      host: pairing ? `dsh-${pairing.hostId}.local` : null, port, securePort,
+      host: pairing ? `dsh-${pairing.hostId}.local` : null, port,
       fingerprint: tlsIdentity?.fingerprint ?? null,
       networks: lanNetworks() }), {
       status: pairing ? 200 : 503,
@@ -863,21 +860,18 @@ export function apply(ctx, config = {}) {
         }
       }
       for (const host of hosts) {
-        for (const [listenPort, identity] of [[port, null], [securePort, tlsIdentity]]) {
-          const key = `${host}:${listenPort}`;
-          if (servers.has(key)) continue;
-          const server = createServer(pairing.token, pairing, workspaces,
-            chats, schedules, identity);
-          server.on('error', error => console.error(`dsh Remote listener ${key}:`, error.message));
-          server.listen(listenPort, host);
-          servers.set(key, server);
-        }
+        const key = `${host}:${port}`;
+        if (servers.has(key)) continue;
+        const server = createServer(pairing.token, pairing, workspaces,
+          chats, schedules, tlsIdentity);
+        server.on('error', error => console.error(`dsh Remote listener ${key}:`, error.message));
+        server.listen(port, host);
+        servers.set(key, server);
       }
     };
     syncListeners();
     const refresh = setInterval(syncListeners, 10_000);
-    const stopDiscovery = startDiscovery(pairing, port, securePort,
-      tlsIdentity.fingerprint);
+    const stopDiscovery = startDiscovery(pairing, port, tlsIdentity.fingerprint);
     return () => {
       clearInterval(refresh);
       stopDiscovery();

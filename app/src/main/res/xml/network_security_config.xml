@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<network-security-config>
-    <domain-config cleartextTrafficPermitted="true">
-        <domain>127.0.0.1</domain>
-        <domain>10.7.32.43</domain>
-        <domain includeSubdomains="true">local</domain>
-    </domain-config>
-</network-security-config>

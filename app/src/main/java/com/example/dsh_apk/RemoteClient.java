@@ -9,7 +9,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
-import java.net.URI;
 import java.net.URLEncoder;
 import java.net.URL;
 import java.security.MessageDigest;
@@ -264,24 +263,6 @@ final class RemoteClient {
 
     void setSecretStore(SecretStore value) { secretStore = value; }
 
-    static String normalizeUrl(String input) throws Exception {
-        URI uri = new URI(input.trim());
-        if (!"http".equals(uri.getScheme()) || uri.getHost() == null
-                || uri.getPort() < 1 || uri.getPort() > 65535
-                || uri.getRawUserInfo() != null || uri.getRawQuery() != null
-                || uri.getRawFragment() != null
-                || (uri.getRawPath() != null && !uri.getRawPath().isEmpty()
-                    && !"/".equals(uri.getRawPath()))) {
-            throw new IllegalArgumentException("请输入 http://主机:端口，例如 http://127.0.0.1:19388");
-        }
-        if (!"127.0.0.1".equals(uri.getHost()) && !"10.7.32.43".equals(uri.getHost())
-                && !uri.getHost().matches("dsh-[a-f0-9]{12}\\.local")) {
-            throw new IllegalArgumentException("请选择发现的电脑，或使用已配置的 USB 地址");
-        }
-        return "http://" + (uri.getHost().contains(":") ? "[" + uri.getHost() + "]" : uri.getHost())
-                + ":" + uri.getPort();
-    }
-
     void check(String baseUrl, String token) throws Exception {
         HttpURLConnection connection = open(baseUrl + "/v1/health", token);
         try {
@@ -487,8 +468,7 @@ final class RemoteClient {
     }
 
     String pair(String baseUrl, String code) throws Exception {
-        HttpURLConnection connection = (HttpURLConnection) new URL(baseUrl + "/v1/pair")
-                .openConnection();
+        HttpURLConnection connection = open(baseUrl + "/v1/pair", null);
         connection.setConnectTimeout(5000);
         connection.setReadTimeout(10000);
         connection.setInstanceFollowRedirects(false);
@@ -551,6 +531,9 @@ final class RemoteClient {
 
     private HttpURLConnection open(String url, String token) throws Exception {
         URL target = new URL(url);
+        if (!"https".equals(target.getProtocol())) {
+            throw new IOException("此设备使用旧地址，请编辑设备并核对 HTTPS 身份码");
+        }
         HttpURLConnection connection = (HttpURLConnection) target.openConnection();
         if (connection instanceof HttpsURLConnection) {
             String base = target.getProtocol() + "://" + target.getHost() + ":" + target.getPort();
@@ -593,7 +576,9 @@ final class RemoteClient {
         connection.setConnectTimeout(5000);
         connection.setReadTimeout(0);
         connection.setInstanceFollowRedirects(false);
-        connection.setRequestProperty("Authorization", "Bearer " + token);
+        if (token != null && !token.isEmpty()) {
+            connection.setRequestProperty("Authorization", "Bearer " + token);
+        }
         return connection;
     }
 
