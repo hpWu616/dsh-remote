@@ -1,0 +1,112 @@
+<!doctype html><meta charset="utf-8"><script>
+(() => {
+  let socket, keyPair, phonePublicKey, key, settings;
+  let sent = 0, received = 0, incoming = [];
+  let sendQueue = Promise.resolve(), receiveQueue = Promise.resolve();
+  const encoder = new TextEncoder(), decoder = new TextDecoder();
+  const emit = value => AndroidRelay.onEvent(JSON.stringify(value));
+  const base64 = bytes => btoa(String.fromCharCode(...bytes));
+  const unbase64 = text => Uint8Array.from(atob(text), c => c.charCodeAt(0));
+  const hex = text => Uint8Array.from(text.match(/../g), n => parseInt(n, 16));
+  const concat = (...parts) => {
+    const result = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+    let offset = 0;
+    for (const part of parts) { result.set(part, offset); offset += part.length; }
+    return result;
+  };
+  const iv = (side, seq) => {
+    const bytes = new Uint8Array(12);
+    bytes[0] = side;
+    new DataView(bytes.buffer).setUint32(8, seq);
+    return bytes;
+  };
+  const signal = value => {
+    if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(value));
+  };
+  const fail = error => emit({ type: 'error', message: String(error) });
+  window.relayDisconnect = () => {
+    socket?.close(); socket = null; key = null; incoming = [];
+    sent = 0; received = 0;
+    sendQueue = Promise.resolve(); receiveQueue = Promise.resolve();
+  };
+  window.relayConnect = async options => {
+    window.relayDisconnect();
+    settings = options;
+    try {
+      keyPair = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' },
+        true, ['deriveBits']);
+      phonePublicKey = base64(new Uint8Array(await crypto.subtle.exportKey(
+        'raw', keyPair.publicKey)));
+      const address = new URL(options.signalUrl);
+      address.searchParams.set('role', 'phone');
+      address.searchParams.set(options.code ? 'code' : 'id',
+        options.code || options.hostId);
+      const currentSocket = new WebSocket(address.toString());
+      socket = currentSocket;
+      currentSocket.onerror = () => {
+        if (socket === currentSocket) fail('信令连接失败');
+      };
+      currentSocket.onclose = event => {
+        if (socket === currentSocket) {
+          key = null;
+          emit({ type: 'closed', message: `连接已断开 (${event.code})` });
+        }
+      };
+      currentSocket.onmessage = event => {
+        if (socket !== currentSocket) return;
+        try {
+          const message = JSON.parse(event.data);
+          if (message.type === 'connected') {
+            if (message.id !== options.hostId) throw Error('电脑编号不匹配');
+            signal({ type: 'join', code: options.code || undefined,
+              proof: options.proof || undefined, nonce: options.nonce,
+              publicKey: phonePublicKey });
+          } else if (message.type === 'ready') {
+            if (message.id !== options.hostId) throw Error('电脑编号不匹配');
+            emit({ type: 'identity', certificate: message.certificate,
+              signature: message.signature, nonce: options.nonce,
+              hostPublicKey: message.publicKey, phonePublicKey });
+          } else if (message.type === 'data') {
+            if (!key) incoming.push(message);
+            else receiveQueue = receiveQueue.then(() => decrypt(message)).catch(fail);
+          } else if (message.type === 'error') fail(message.error || '信令错误');
+        } catch (error) { fail(error); }
+      };
+    } catch (error) { fail(error); }
+  };
+  window.relayApproveIdentity = async hostPublicKey => {
+    try {
+      const imported = await crypto.subtle.importKey('raw', unbase64(hostPublicKey),
+        { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+      const secret = new Uint8Array(await crypto.subtle.deriveBits(
+        { name: 'ECDH', public: imported }, keyPair.privateKey, 256));
+      const material = concat(encoder.encode('dsh-remote-e2e-v1'), secret,
+        hex(settings.nonce));
+      const digest = await crypto.subtle.digest('SHA-256', material);
+      key = await crypto.subtle.importKey('raw', digest, { name: 'AES-GCM' },
+        false, ['encrypt', 'decrypt']);
+      emit({ type: 'channel-open' });
+      for (const frame of incoming) {
+        receiveQueue = receiveQueue.then(() => decrypt(frame)).catch(fail);
+      }
+      incoming = [];
+    } catch (error) { fail(error); }
+  };
+  async function decrypt(frame) {
+    if (!key || frame.seq !== received + 1) throw Error('远程消息顺序错误');
+    const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv(1, frame.seq) },
+      key, unbase64(frame.payload));
+    received++;
+    AndroidRelay.onEvent(decoder.decode(plain));
+  }
+  window.relaySendFrame = frame => {
+    sendQueue = sendQueue.then(async () => {
+      if (!key || socket?.readyState !== WebSocket.OPEN) throw Error('加密通道尚未连接');
+      if (++sent > 0xffffffff) throw Error('远程消息序号已用尽');
+      const payload = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv(2, sent) },
+        key, encoder.encode(frame));
+      signal({ type: 'data', seq: sent, payload: base64(new Uint8Array(payload)) });
+    }).catch(fail);
+  };
+})();
+</script>

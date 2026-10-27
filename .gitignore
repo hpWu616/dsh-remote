@@ -6,6 +6,8 @@
 .DS_Store
 /build
 /dist/
+/node_modules/
+**/.wrangler/
 /dsh-remote-host/
 /.publish/
 /captures

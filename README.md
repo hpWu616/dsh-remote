@@ -2,7 +2,7 @@
 
 [中文](README.md) · [English](README.en.md)
 
-用 Android 手机连接运行 DeepSeek Harness（dsh）的电脑。项目由 [Android App](app/) 和仓库根目录的 dsh Host 插件组成：手机可管理多台电脑的工作区与会话，发送消息，并使用 PC 端的模型、工作模式、技能和自动化任务。使用前需要一台已安装 dsh 的电脑、一部 Android 7.0 或更新版本的手机，以及两者可互通的局域网。
+用 Android 手机连接运行 DeepSeek Harness（dsh）的电脑。项目由 [Android App](app/)、仓库根目录的 dsh Host 插件和 [Cloudflare WebSocket 中继](cloudflare/) 组成：手机可管理多台电脑的工作区与会话，发送消息，并使用 PC 端的模型、工作模式、技能和自动化任务。手机与 PC 可在不同路由器下使用，但两端都必须能连接同一个中继服务。
 
 ## 下载
 
@@ -20,7 +20,7 @@
 
 1. 在 dsh「插件」页面选择安装第三方插件，输入 `github:hpWu616/dsh-remote`（也可输入 `https://github.com/hpWu616/dsh-remote`）。仓库根目录就是插件包，包含 `package.json` 和 `cordis.patch.yml`。
 2. 确认插件已启用，**完全退出并重新打开 dsh**。更新插件版本后也需重启。
-3. 打开「插件 → 已安装 → 内置插件配置 → 手机连接」。此处可打开或关闭新手机配对、显示或隐藏 8 位配对码，并查看电脑 IPv4、HTTPS 端口和身份码。收起后会保留一个小的「手机连接」入口。
+3. 打开「插件 → 已安装 → 内置插件配置 → 手机连接」。此处可打开或关闭新手机配对、显示或隐藏 8 位配对码，并查看电脑 IPv4、HTTPS 端口、身份码和远程地址。收起后会保留一个小的「手机连接」入口。
 
 每台要连接的电脑都需单独安装插件。本版插件包名为 `@hpwu616/dsh-remote-host`；如果此前安装了 `@local/dsh-remote-host`，请先在 dsh 中卸载或停用旧插件，完全退出 dsh 后再安装新版，避免两个插件同时占用端口。
 
@@ -34,9 +34,19 @@
 2. 在手机「文件」或「下载」中找到**扩展名为 `.apk`** 的文件并打开。若系统提示限制安装，请按提示允许当前浏览器或文件管理器安装应用。
 3. 安装后打开 dsh Remote。如果通过聊天软件传输 APK，「已接收」只表示传输完成；仍需在文件管理器中打开安装包。
 
-## 连接与配对
+## 不同路由器远程连接
 
-1. 手机必须能访问目标电脑的地址和 HTTPS 端口；同一可路由的私有网络内，即使电脑处于不同网段也可以手动添加。8 位码本身无法打通隔离的网络。
+本项目默认连接 `wss://dsh-remote-signal.hpwu616-dsh-remote.workers.dev/signal`。PC 插件会显示中继状态和该电脑专属的 `relay://…/<电脑编号>` 地址。每台 PC 的远程地址和身份码都不同。
+
+1. 在 PC「手机连接」中确认中继状态为 `online`，复制「手机远程地址」和前 24 位电脑身份码。首次使用请开启「允许新手机配对」并显示 8 位码。
+2. 在 App 中点「＋添加」，填写设备名称、复制的 `relay://…` 地址，以及 PC 身份码，保存。手机不需要安装 Tailscale，也不需要填写 PC 的 IP 或开放路由器端口。
+3. 选择这台设备，输入 PC 当前显示的 8 位码并配对。完成后可关闭新手机配对；已有令牌会保存在手机，重新打开 App 时自动连接。
+
+中继只转发经过端到端加密的帧。手机在首次连接时核对 PC 证书身份码，后续检查 PC 签名；Cloudflare 无法读取会话内容或配对令牌。该服务依赖双方能访问 `workers.dev`；若网络阻断该域名，请在自己的 Cloudflare 账号部署 [Worker 源码](cloudflare/) 并在 PC「手机连接」中改填自己的 `wss://…/signal` 地址。只需 Workers 免费计划，无需创建 TURN 密钥或绑定支付方式。免费额度耗尽时中继会暂时不可用；见 [Cloudflare 官方额度](https://developers.cloudflare.com/durable-objects/platform/pricing/)。
+
+## 局域网连接与配对
+
+1. 手机必须能访问目标电脑的地址和 HTTPS 端口；同一可路由的私有网络内，即使电脑处于不同网段也可以手动添加。跨路由器且无法直连时请用上面的中继方式。
 2. 在 App 点「＋添加」，输入该电脑的 `https://IPv4:19390`，例如 `https://10.15.223.91:19390`。App 会显示电脑身份码；请与 PC「手机连接」中的身份码逐组核对，一致后点「一致，保存」。每台电脑可设置不同名称和备注。已保存的旧 HTTP 地址需在「编辑资料」中换为 HTTPS 地址并重新核对身份码。
 3. 在 PC 的「手机连接」中开启「允许新手机配对」，点「显示」查看 8 位码。手机选择该电脑，输入代码并点「配对设备」。每台电脑分别核对身份并配对一次。
 4. 配对后可以在 PC 隐藏配对码或关闭新手机配对；已配对的手机重新打开 App 时会自动检查连接。手机退到后台时不保持实时连接。
@@ -52,12 +62,13 @@
 ## 连接问题
 
 - **未发现电脑：**自动发现仅在可广播的局域网中工作。跨网段请手动输入 `https://电脑IPv4:19390`；检查 PC 插件已更新并重启，以及防火墙是否允许 dsh 的 TCP 19390。浏览器访问该地址可能提示自签名证书，请在 App 中核对身份码后配对。
+- **远程地址离线：**查看 PC「手机连接」中的中继状态；手机和 PC 都需要能访问所配置的 `workers.dev` 域名。状态不是 `online` 时，检查该域名在 PC 浏览器是否可打开 `/health`；网络阻断时可改用自己的 Cloudflare Worker 域名。远程地址必须以 `relay://` 开头，不能填 `wss://`。
 - **已保存 `.local` 地址却离线：**在设备的「编辑资料」中把连接地址改为该 PC 的 `https://IPv4:19390`，核对身份码后保存。如果电脑的配对身份未变，App 会迁移原有令牌。
 - **插件安装提示没有写入权限：**若安装详情含 `ERR_PNPM_EPERM` 及 `@local/dsh-remote-host` 的目录重命名失败，通常是旧包目录被占用。请在 dsh 中卸载或停用旧插件，完全退出 dsh 后安装当前新版包；不要手工修改 dsh 的 profile。
 - **有配对码但无法连接：**配对码只用于认证。手机若无法访问 PC，输入相同数字也无法建立连接。PC「手机连接」中的地址和端口可用于排查网络。
 - **无法覆盖安装 APK：**通常是两个调试 APK 的签名不同；先保留所需的手机端资料，再卸载旧版并安装 Release APK，随后重新配对。
 
-插件提供的命令接口具有执行 PC 操作的能力。所有连接都使用经身份码核对的 HTTPS；**不要把插件端口开放到公网**。协议、端口及认证细节见 [接口说明](docs/API.md)。
+插件提供的命令接口具有执行 PC 操作的能力。局域网连接使用身份码核对的 HTTPS，远程连接使用身份码核对的端到端加密 WebSocket 中继；**不要把插件端口开放到公网**。协议、端口及认证细节见 [接口说明](docs/API.md)。
 
 ## 从源码构建
 
@@ -67,7 +78,7 @@ Windows 上准备 Android SDK 和 JDK 25，在仓库根目录运行：
 .\scripts\package.ps1
 ```
 
-脚本会构建调试 APK，并在忽略提交的 `dist/` 目录生成 APK、插件 ZIP 和 SHA-256 校验文件。只构建 APK 可运行 `.\gradlew.bat :app:assembleDebug`；在仓库根目录运行 `npm test` 可测试插件。Release 由 [GitHub Actions](.github/workflows/package-release.yml) 构建。
+脚本会构建调试 APK，并在忽略提交的 `dist/` 目录生成 APK、插件 ZIP 和 SHA-256 校验文件。只构建 APK 可运行 `.\gradlew.bat :app:assembleDebug`；在仓库根目录运行 `npm ci`、`npm run build:relay` 和 `npm test` 可构建并测试插件。Release 由 [GitHub Actions](.github/workflows/package-release.yml) 构建。
 
 ## 仓库目录
 
@@ -76,6 +87,7 @@ Windows 上准备 Android SDK 和 JDK 25，在仓库根目录运行：
 | `app/` | Android 客户端 |
 | `package.json`、`cordis.patch.yml`、`index.js` 等 | PC 端 dsh 插件；仓库根目录可作为 Git 插件包安装 |
 | `scripts/package.ps1` | 本地打包脚本 |
+| `cloudflare/` | 免费 WebSocket 中继 Worker；部署方法见该目录说明 |
 | `docs/API.md` | 网络和接口说明 |
 
 本机配置、IDE 文件、密钥和构建产物已由 [.gitignore](.gitignore) 排除。许可证见 [LICENSE](LICENSE)。

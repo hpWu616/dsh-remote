@@ -9,6 +9,7 @@ import { StringDecoder } from 'node:string_decoder';
 import { promisify } from 'node:util';
 import { lanInterfaces, lanNetworks, startDiscovery } from './discovery.js';
 import { loadTlsIdentity } from './tls-identity.js';
+import { startRelayHost } from './remote-relay.js';
 
 const MAX_BODY = 8192;
 const MAX_FILE_BODY = 12 * 1024 * 1024;
@@ -16,6 +17,8 @@ const MAX_OUTPUT = 1024 * 1024;
 const TIMEOUT_MS = 120_000;
 const PAIR_WINDOW_MS = 300_000;
 const CREDENTIAL_KEY = 'dsh-remote-host/pairing';
+const RELAY_KEY = 'dsh-remote-host/relay';
+const DEFAULT_RELAY_URL = 'wss://dsh-remote-signal.hpwu616-dsh-remote.workers.dev/signal';
 const execFileAsync = promisify(execFile);
 
 async function driveRoots() {
@@ -812,6 +815,10 @@ export function scheduleBridge(ctx) {
 export function apply(ctx, config = {}) {
   let pairing;
   let tlsIdentity;
+  let relay;
+  let relayUrl = '';
+  let relayStatus = 'off';
+  let updateRelay;
   const port = Number(config.securePort ?? 19390);
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     throw new Error('DSH_REMOTE_PORT must be a valid TCP port');
@@ -821,6 +828,7 @@ export function apply(ctx, config = {}) {
     fetch: () => new Response(JSON.stringify({ code: pairing?.enabled ? pairing.code : null,
       enabled: pairing?.enabled ?? false, lanHost: '自动发现',
       host: pairing ? `dsh-${pairing.hostId}.local` : null, port,
+      hostId: pairing?.hostId ?? null, relayUrl, relayStatus,
       fingerprint: tlsIdentity?.fingerprint ?? null,
       networks: lanNetworks() }), {
       status: pairing ? 200 : 503,
@@ -836,7 +844,26 @@ export function apply(ctx, config = {}) {
         const { enabled } = await request.json();
         if (typeof enabled !== 'boolean') return new Response(null, { status: 400 });
         await pairing.setEnabled(enabled);
+        relay?.refresh();
         return new Response(JSON.stringify({ enabled }), {
+          headers: { 'Content-Type': 'application/json; charset=utf-8' },
+        });
+      } catch { return new Response(null, { status: 500 }); }
+    },
+  });
+  ctx.connection.fetch.register({
+    path: '/api/dsh-remote-relay', methods: ['POST'], requestBody: 'buffered',
+    fetch: async request => {
+      if (!updateRelay) return new Response(null, { status: 503 });
+      try {
+        const { url } = await request.json();
+        if (typeof url !== 'string' || (url &&
+            !/^wss:\/\/[a-z0-9.-]+(?::[0-9]+)?\/signal$/i.test(url))) {
+          return new Response(JSON.stringify({ error: 'Invalid WSS signal URL' }),
+            { status: 400 });
+        }
+        await updateRelay(url);
+        return new Response(JSON.stringify({ url }), {
           headers: { 'Content-Type': 'application/json; charset=utf-8' },
         });
       } catch { return new Response(null, { status: 500 }); }
@@ -845,6 +872,24 @@ export function apply(ctx, config = {}) {
   ctx.effect(async () => {
     pairing = await loadPairing(ctx.credentials);
     tlsIdentity = await loadTlsIdentity(ctx.credentials, pairing.hostId);
+    const storedRelay = await ctx.credentials.readRecord(RELAY_KEY);
+    relayUrl = storedRelay ? (storedRelay.payload?.url || '')
+      : (config.signalUrl || DEFAULT_RELAY_URL);
+    updateRelay = async url => {
+      await ctx.credentials.modifyRecord(RELAY_KEY,
+        () => ({ kind: 'grant', payload: { url } }));
+      relay?.stop();
+      relay = null;
+      relayUrl = url;
+      relayStatus = url ? 'connecting' : 'off';
+      if (url) relay = startRelayHost({ pairing, tlsIdentity, port,
+        signalUrl: url, onStatus: value => { relayStatus = value; } });
+    };
+    if (relayUrl) {
+      relayStatus = 'connecting';
+      relay = startRelayHost({ pairing, tlsIdentity, port,
+        signalUrl: relayUrl, onStatus: value => { relayStatus = value; } });
+    }
     const workspaces = workspaceBridge(ctx);
     const chats = chatBridge(ctx);
     const schedules = scheduleBridge(ctx);
@@ -873,6 +918,8 @@ export function apply(ctx, config = {}) {
     const refresh = setInterval(syncListeners, 10_000);
     const stopDiscovery = startDiscovery(pairing, port, tlsIdentity.fingerprint);
     return () => {
+      relay?.stop();
+      updateRelay = null;
       clearInterval(refresh);
       stopDiscovery();
       for (const server of servers.values()) if (server.listening) server.close();

@@ -59,6 +59,7 @@ public final class MainActivity extends Activity {
     private final ExecutorService probes = Executors.newFixedThreadPool(4);
     private final ExecutorService discoveryWorker = Executors.newSingleThreadExecutor();
     private final RemoteClient client = new RemoteClient();
+    private RelayClient relayClient;
     private final Map<String, String> deviceStatus = new HashMap<>();
     private final Map<String, List<RemoteClient.Workspace>> workspaceCache = new HashMap<>();
     private final Map<String, List<RemoteClient.Session>> sessionCache = new HashMap<>();
@@ -116,7 +117,8 @@ public final class MainActivity extends Activity {
         @Override public void run() {
             if (!foreground) return;
             for (DeviceStore.Device device : devices.list()) {
-                if (DiscoveryClient.isPrivateSecureUrl(device.url)
+                if ((DiscoveryClient.isPrivateSecureUrl(device.url)
+                        || RelayClient.isRelayUrl(device.url))
                         && !secrets.token(device.url).isEmpty()) {
                     probes.execute(() -> loadWorkspaces(device));
                 }
@@ -131,6 +133,10 @@ public final class MainActivity extends Activity {
         super.onCreate(state);
         secrets = new SecretStore(this);
         client.setSecretStore(secrets);
+        try {
+            relayClient = new RelayClient(this, secrets);
+            client.setRelayClient(relayClient);
+        } catch (Exception ignored) { relayClient = null; }
         devices = new DeviceStore(this);
         List<DeviceStore.Device> saved = devices.list();
         for (DeviceStore.Device device : saved) {
@@ -166,6 +172,10 @@ public final class MainActivity extends Activity {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Color.WHITE);
         setContentView(root);
+        if (relayClient != null) {
+            relayClient.webView().setAlpha(0f);
+            root.addView(relayClient.webView(), new LinearLayout.LayoutParams(1, 1));
+        }
         if (Build.VERSION.SDK_INT >= 30) {
             root.setOnApplyWindowInsetsListener((view, insets) -> {
                 int top = Build.VERSION.SDK_INT >= 35
@@ -561,7 +571,8 @@ public final class MainActivity extends Activity {
         renderWorkspaces();
         renderSessions();
         setStatus("已选择 " + device.name);
-        if (!DiscoveryClient.isPrivateSecureUrl(device.url)
+        if (!(DiscoveryClient.isPrivateSecureUrl(device.url)
+                || RelayClient.isRelayUrl(device.url))
                 || secrets.fingerprint(device.url).isEmpty()) {
             editDevice(device);
         } else if (!secrets.token(device.url).isEmpty()) checkDevice(device);
@@ -1995,6 +2006,20 @@ public final class MainActivity extends Activity {
                 InputType.TYPE_CLASS_TEXT, false);
         EditText address = field(form, "连接地址", existing == null ? "" : existing.url,
                 InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI, false);
+        EditText identity = field(form, "PC 身份码（前 24 位）",
+                existing != null && RelayClient.isRelayUrl(existing.url)
+                        ? secrets.fingerprint(existing.url) : "",
+                InputType.TYPE_CLASS_TEXT, false);
+        identity.setVisibility(existing != null && RelayClient.isRelayUrl(existing.url)
+                ? View.VISIBLE : View.GONE);
+        address.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence text, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence text, int start, int before, int count) {
+                identity.setVisibility(text.toString().startsWith("relay://")
+                        ? View.VISIBLE : View.GONE);
+            }
+            @Override public void afterTextChanged(Editable text) { }
+        });
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle(existing == null ? "添加设备" : "编辑设备")
                 .setView(form)
@@ -2007,6 +2032,16 @@ public final class MainActivity extends Activity {
                     if (label.isEmpty()) { name.setError("请输入设备名称"); return; }
                     String typed = address.getText().toString().trim();
                     String memo = note.getText().toString().trim();
+                    if (RelayClient.isRelayUrl(typed)) {
+                        String fingerprint = identity.getText().toString().trim();
+                        if (!fingerprint.replace(" ", "").matches("(?i)[a-f0-9]{24}|[a-f0-9]{64}")) {
+                            identity.setError("请输入 PC 插件显示的身份码");
+                            return;
+                        }
+                        saveDevice(existing, label, memo, typed, address, dialog);
+                        secrets.saveRelayFingerprint(typed, fingerprint);
+                        return;
+                    }
                     if (DiscoveryClient.isPrivateSecureUrl(typed)) {
                         if (Build.VERSION.SDK_INT >= 37 && checkSelfPermission(LOCAL_NETWORK)
                                 != PackageManager.PERMISSION_GRANTED) {
@@ -2125,10 +2160,11 @@ public final class MainActivity extends Activity {
     }
 
     private void checkSavedDevices() {
-        if (Build.VERSION.SDK_INT >= 37 && checkSelfPermission(LOCAL_NETWORK)
-                != PackageManager.PERMISSION_GRANTED) return;
         for (DeviceStore.Device device : devices.list()) {
-            if (DiscoveryClient.isPrivateSecureUrl(device.url)
+            if ((RelayClient.isRelayUrl(device.url)
+                    || (DiscoveryClient.isPrivateSecureUrl(device.url)
+                    && (Build.VERSION.SDK_INT < 37 || checkSelfPermission(LOCAL_NETWORK)
+                    == PackageManager.PERMISSION_GRANTED)))
                     && !secrets.fingerprint(device.url).isEmpty()
                     && !secrets.token(device.url).isEmpty()) checkDevice(device);
         }
@@ -2214,7 +2250,8 @@ public final class MainActivity extends Activity {
 
     private void start(int action) {
         if (busy || selected == null) return;
-        if (Build.VERSION.SDK_INT >= 37 && checkSelfPermission(LOCAL_NETWORK)
+        if (!RelayClient.isRelayUrl(selected.url)
+                && Build.VERSION.SDK_INT >= 37 && checkSelfPermission(LOCAL_NETWORK)
                 != PackageManager.PERMISSION_GRANTED) {
             pendingAction = action;
             setStatus("等待局域网权限授权…");
@@ -2320,6 +2357,7 @@ public final class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         client.cancel();
+        if (relayClient != null) relayClient.close();
         worker.shutdownNow();
         probes.shutdownNow();
         discoveryWorker.shutdownNow();

@@ -1,0 +1,9 @@
+{
+  "name": "dsh-remote-signal",
+  "main": "worker.js",
+  "compatibility_date": "2026-10-27",
+  "durable_objects": {
+    "bindings": [{ "name": "HUB", "class_name": "SignalHub" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SignalHub"] }]
+}

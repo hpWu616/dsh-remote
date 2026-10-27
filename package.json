@@ -1,6 +1,6 @@
 {
   "name": "@hpwu616/dsh-remote-host",
-  "version": "0.15.0",
+  "version": "0.16.0",
   "private": true,
   "type": "module",
   "description": "Authenticated command bridge for the dsh Remote Android client",
@@ -15,8 +15,19 @@
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json"
   },
-  "files": ["index.js", "client.js", "discovery.js", "tls-identity.js", "cordis.patch.yml", "locale/*.json", "icon.svg"],
+  "files": [
+    "index.js",
+    "client.js",
+    "discovery.js",
+    "tls-identity.js",
+    "remote-relay.js",
+    "vendor/relay-deps.cjs",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg"
+  ],
   "scripts": {
+    "build:relay": "esbuild scripts/relay-deps-entry.cjs --bundle --platform=node --format=cjs --target=node22 --outfile=vendor/relay-deps.cjs",
     "test": "node --test"
   },
   "dsh": {
@@ -26,7 +37,13 @@
     "client": {
       "platform": "web",
       "immediately": true,
-      "inject": ["@deepseek-ai/dsh-client-ui-layout"]
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-layout"
+      ]
     }
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "ws": "^8.22.0"
   }
 }
