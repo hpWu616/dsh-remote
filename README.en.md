@@ -34,12 +34,13 @@ If dsh reports an installation timeout, run `git ls-remote https://github.com/hp
 
 ## Connect across different routers
 
-The plugin has no shared default relay. Each user who wants access across routers deploys a Worker in their **own Cloudflare account** and enters its address in the PC plugin. The phone uses the device address shown by that PC.
+The plugin has no shared default relay. Each user who wants access across routers deploys a Worker in their **own Cloudflare account**. Automatic setup requires Node.js and npm on the PC and access to Cloudflare.
 
-1. Click [Deploy to Cloudflare](https://deploy.workers.cloudflare.com/?url=https://github.com/hpWu616/dsh-remote/tree/main/cloudflare), sign in to Cloudflare and GitHub, select your Cloudflare account, and follow the page to create the Worker and Durable Object. See the [relay deployment guide](cloudflare/README.md) for details and a command-line alternative.
-2. Copy the resulting `https://YOUR-WORKER.YOUR-SUBDOMAIN.workers.dev` address. Open that address plus `/health` in a browser and confirm it returns `{"ok":true}`.
-3. On every PC, open Plugins → Phone connection, enter `wss://YOUR-WORKER.YOUR-SUBDOMAIN.workers.dev/signal`, and save. Wait for `online`, then copy the generated `relay://…/<host-id>` address and the first 24 characters of the PC identity code. Enable new-phone pairing and show the eight-digit code.
-4. In the app, add a device using the copied `relay://…` address and identity code. Select it and enter the current eight-digit code. You can disable new-phone pairing afterward; the app reconnects when reopened.
+1. On a PC, open Plugins → Phone connection and select **Cross-network connection** (currently labeled “跨网络连接”). The plugin starts Cloudflare's official Wrangler and opens browser authorization. Sign in and authorize. If you have multiple Cloudflare accounts, select one in the plugin. Enable a `workers.dev` subdomain if prompted.
+2. Wait for “中继地址已自动保存” and relay status `online`. Copy the generated `relay://…/<host-id>` address and the first 24 characters of the PC identity code. Enable new-phone pairing and show the eight-digit code.
+3. In the app, add a device using the copied `relay://…` address and identity code. Select it and enter the current eight-digit code. You can disable new-phone pairing afterward; the app reconnects when reopened.
+
+If automatic setup fails, follow the [relay deployment guide](cloudflare/README.md) and enter `wss://YOUR-WORKER.YOUR-SUBDOMAIN.workers.dev/signal` manually. Several PCs can share one Worker; on additional PCs, enter the first PC's WSS address manually.
 
 Multiple PCs may share your Worker, but each PC has its own device address, identity code, and pairing code. After upgrading an older plugin, replace any previously saved shared relay URL with your own. Changing the relay hostname requires adding the affected PCs again in the app. Local network use does not require a Worker, Tailscale, a PC public IP, or router port forwarding.
 

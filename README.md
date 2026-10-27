@@ -36,12 +36,13 @@
 
 ## 不同路由器远程连接
 
-插件不预设任何公用中继。每位需要跨路由器连接的用户都在**自己的 Cloudflare 账号**部署 Worker，然后在每台 PC 的插件中填写自己的地址；手机只需使用 PC 面板生成的设备地址。
+插件不预设任何公用中继。每位需要跨路由器连接的用户都在**自己的 Cloudflare 账号**部署 Worker。自动配置要求 PC 已安装 Node.js 与 npm，并能访问 Cloudflare。
 
-1. 点击 [部署到 Cloudflare](https://deploy.workers.cloudflare.com/?url=https://github.com/hpWu616/dsh-remote/tree/main/cloudflare)，登录 Cloudflare 和 GitHub，选择自己的 Cloudflare 账号，按页面提示创建 Worker 与 Durable Object 并完成部署。详细步骤和命令行备选方案见 [中继部署说明](cloudflare/README.md)。
-2. 记下部署完成后的 `https://你的Worker.你的子域名.workers.dev`，先在浏览器打开该地址后加 `/health`，确认显示 `{"ok":true}`。
-3. 在每台 PC 的「插件 → 手机连接」中填写 `wss://你的Worker.你的子域名.workers.dev/signal` 并保存。等待状态变为 `online`，再复制面板生成的 `relay://…/<电脑编号>` 地址及前 24 位电脑身份码。首次使用请开启「允许新手机配对」并显示 8 位码。
-4. 在 App 中点「＋添加」，填写设备名称、复制的 `relay://…` 地址和 PC 身份码。选择设备，输入 PC 当前显示的 8 位码完成配对。之后可以关闭新手机配对；重新打开 App 时会自动连接。
+1. 在 PC 的「插件 → 手机连接」中选「跨网络连接」。插件会调用 Cloudflare 官方 Wrangler 并打开浏览器；登录并授权 Cloudflare。如账号下有多个账户，在插件中选择部署位置。首次使用时按 Cloudflare 提示开通自己的 `workers.dev` 子域名。
+2. 等待插件显示「中继地址已自动保存」且信令状态变为 `online`。复制面板生成的 `relay://…/<电脑编号>` 地址及前 24 位电脑身份码。首次配对请开启「允许新手机配对」并显示 8 位码。
+3. 在 App 中点「＋添加」，填写设备名称、复制的 `relay://…` 地址和 PC 身份码。选择设备，输入 PC 当前显示的 8 位码完成配对。之后可以关闭新手机配对；重新打开 App 时会自动连接。
+
+自动配置失败时，可按 [中继部署说明](cloudflare/README.md) 手动部署，再在「跨网络连接」面板填入 `wss://你的Worker.你的子域名.workers.dev/signal`。多台 PC 可以使用同一个自有 Worker；其他电脑只需手动填入第一台电脑已部署的 WSS 地址。
 
 多台 PC 可以使用同一个自有 Worker，但每台 PC 的设备地址、身份码和配对码不同。更新旧版插件后，如已保存旧中继地址，请在「手机连接」中改成自己的 Worker 地址；更换中继域名后，需要在 App 中重新添加相应设备。局域网连接无需部署 Worker。手机不需要安装 Tailscale，也不需要开放路由器端口。
 

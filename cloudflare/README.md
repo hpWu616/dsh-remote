@@ -4,6 +4,10 @@ The Android app and PC plugin do not use a shared public relay. Deploy this Work
 
 Android App 与 PC 插件不使用项目作者的公用中继。跨路由器连接前，请将本目录的 Worker 部署到自己的 Cloudflare 账号。Worker 转发端到端加密的消息，需要一个 SQLite Durable Object，不需要 Cloudflare TURN 密钥或 PC 公网端口。
 
+## Plugin-assisted setup / 插件自动配置
+
+Install Node.js and npm on the PC. In dsh, open **Plugins → Phone connection → Cross-network connection**. The plugin runs the official Wrangler CLI, opens Cloudflare authorization in your browser, deploys this Worker to the account you choose, and saves the resulting WSS address. If you have several Cloudflare accounts, choose the intended one in the plugin. Cloudflare may first ask you to enable a `workers.dev` subdomain. / 在 PC 安装 Node.js 与 npm，打开 dsh「插件 → 手机连接 → 跨网络连接」。插件调用官方 Wrangler，在浏览器中完成 Cloudflare 授权，将 Worker 部署到选定账号，并自动保存 WSS 地址。多个账户时需在插件中选择；Cloudflare 可能要求先开通 `workers.dev` 子域名。
+
 ## Browser setup / 浏览器部署
 
 1. Open [Deploy to Cloudflare](https://deploy.workers.cloudflare.com/?url=https://github.com/hpWu616/dsh-remote/tree/main/cloudflare). Sign in to Cloudflare and GitHub, then select **your** Cloudflare account. / 打开链接，登录 Cloudflare 和 GitHub，选择**自己的** Cloudflare 账号。

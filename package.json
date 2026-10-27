@@ -1,6 +1,6 @@
 {
   "name": "@hpwu616/dsh-remote-host",
-  "version": "0.16.2",
+  "version": "0.16.3",
   "private": true,
   "type": "module",
   "description": "Authenticated command bridge for the dsh Remote Android client",
@@ -21,6 +21,9 @@
     "discovery.js",
     "tls-identity.js",
     "remote-relay.js",
+    "cloudflare-onboarding.js",
+    "cloudflare/worker.js",
+    "cloudflare/wrangler.jsonc",
     "vendor/relay-deps.cjs",
     "cordis.patch.yml",
     "locale/*.json",

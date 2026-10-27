@@ -104,6 +104,9 @@ test('dsh Client Connection exposes the current pairing code', async () => {
   assert.ok(route);
   assert.deepEqual(route.methods, ['GET']);
   assert.ok(routes.get('/api/dsh-remote-pairing'));
+  assert.ok(routes.get('/api/dsh-remote-cloudflare'));
+  assert.ok(routes.get('/api/dsh-remote-cloudflare/start'));
+  assert.ok(routes.get('/api/dsh-remote-cloudflare/account'));
   assert.equal((await route.fetch()).status, 503);
   const first = await loadPairing(credentials);
   assert.match(first.hostId, /^[a-f0-9]{12}$/);

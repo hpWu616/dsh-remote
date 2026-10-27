@@ -9,6 +9,8 @@ window.__ModuleLoader__.load({
       const [expanded, setExpanded] = React.useState(true);
       const [showCode, setShowCode] = React.useState(false);
       const [changing, setChanging] = React.useState(false);
+      const [connectionMode, setConnectionMode] = React.useState('lan');
+      const [cloudflare, setCloudflare] = React.useState(null);
       const relayInput = React.useRef(null);
       const transport = window.__DSH_TRANSPORT__;
       const send = transport?.fetch ? transport.fetch.bind(transport) : fetch;
@@ -21,8 +23,13 @@ window.__ModuleLoader__.load({
           })
           .then(value => { if (active) setDetails(value); })
           .catch(() => { if (active) setDetails(null); });
+        const refreshCloudflare = () => send('api/dsh-remote-cloudflare', { cache: 'no-store' })
+          .then(response => response.ok ? response.json() : null)
+          .then(value => { if (active) setCloudflare(value); })
+          .catch(() => {});
         refresh();
-        const timer = setInterval(refresh, 5000);
+        refreshCloudflare();
+        const timer = setInterval(() => { refresh(); refreshCloudflare(); }, 3000);
         return () => { active = false; clearInterval(timer); };
       }, []);
 
@@ -51,6 +58,27 @@ window.__ModuleLoader__.load({
             relayStatus: signalUrl ? 'connecting' : 'off' });
         }).catch(() => window.alert('远程信令地址无效或保存失败'))
           .finally(() => setChanging(false));
+      };
+      const startCloudflare = () => send('api/dsh-remote-cloudflare/start', {
+        method: 'POST',
+      }).then(async response => {
+        const value = await response.json();
+        setCloudflare(value);
+        if (!response.ok) throw new Error(value.message);
+      }).catch(error => window.alert(error.message || 'Cloudflare 配置启动失败'));
+      const chooseCloudflareAccount = id => send('api/dsh-remote-cloudflare/account', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      }).then(response => {
+        if (!response.ok) throw new Error('账户选择失败');
+        return response.json();
+      }).then(setCloudflare).catch(error => window.alert(error.message));
+      const selectMode = mode => {
+        setConnectionMode(mode);
+        if (mode === 'remote' && !details?.relayUrl
+            && (!cloudflare || ['idle', 'error'].includes(cloudflare.phase))) {
+          startCloudflare();
+        }
       };
 
       const buttonStyle = {
@@ -98,6 +126,14 @@ window.__ModuleLoader__.load({
           showCode ? '隐藏' : '显示')),
           h('div', { style: { borderTop: '1px solid var(--dsw-alias-border-l1, #d8dce7)',
             marginTop: 12, paddingTop: 10, fontSize: 11, lineHeight: 1.7 } },
+          h('div', { style: { display: 'flex', gap: 6, marginBottom: 10 } },
+            h('button', { type: 'button', style: { ...buttonStyle,
+              background: connectionMode === 'lan' ? 'var(--dsw-alias-bg-secondary, #eef2fa)' : 'transparent' },
+              onClick: () => selectMode('lan') }, '局域网连接'),
+            h('button', { type: 'button', style: { ...buttonStyle,
+              background: connectionMode === 'remote' ? 'var(--dsw-alias-bg-secondary, #eef2fa)' : 'transparent' },
+              onClick: () => selectMode('remote') }, '跨网络连接')),
+          connectionMode === 'lan' && h(React.Fragment, null,
           h('div', { style: { opacity: 0.65, marginBottom: 3 } }, '电脑网络'),
           details?.host && h('div', { style: { overflowWrap: 'anywhere', marginBottom: 5,
             fontWeight: 600 } }, `电脑名称  ${details.host}`),
@@ -113,18 +149,30 @@ window.__ModuleLoader__.load({
             h('div', null, `IPv4  ${network.address}`),
             h('div', null, `网段  ${network.subnet}`),
             h('div', null, `HTTPS 地址  https://${network.address}:${details.port}`)))
-            : h('div', null, '未检测到局域网 IPv4 地址')),
-          h('div', { style: { marginTop: 14, paddingTop: 12,
+            : h('div', null, '未检测到局域网 IPv4 地址'))),
+          connectionMode === 'remote' && h('div', { style: { marginTop: 4, paddingTop: 10,
             borderTop: '1px solid var(--dsw-alias-border-l1, #d8dce7)' } },
           h('div', { style: { fontWeight: 600, marginBottom: 7 } },
             '跨网络连接 · Cloudflare 加密中继'),
           h('div', { style: { opacity: 0.65, marginBottom: 6 } },
             `信令状态：${details?.relayUrl ? details.relayStatus : '未配置'}`),
-          !details?.relayUrl && h('div', { style: { marginBottom: 8, lineHeight: 1.6 } },
-            '远程连接需先部署自己的 Cloudflare Worker。',
+          details?.fingerprint && h('div', { style: { userSelect: 'text', marginBottom: 6 } },
+            `电脑身份码  ${details.fingerprint.slice(0, 24).match(/.{1,4}/g).join(' ')}`),
+          h('div', { style: { marginBottom: 8, lineHeight: 1.6 } },
+            '首次使用会打开浏览器授权，并将中继部署到你自己的 Cloudflare 账号。电脑需安装 Node.js。',
             h('a', { href: 'https://github.com/hpWu616/dsh-remote/tree/main/cloudflare',
               target: '_blank', rel: 'noopener noreferrer',
               style: { color: 'var(--dsw-alias-label-link, #3e65d5)' } }, '查看部署步骤')),
+          h('button', { type: 'button', style: { ...buttonStyle, marginBottom: 8 },
+            disabled: cloudflare && ['authenticating', 'select_account', 'deploying'].includes(cloudflare.phase),
+            onClick: startCloudflare }, details?.relayUrl ? '重新部署并获取地址' : '登录 Cloudflare 并自动获取地址'),
+          cloudflare?.message && h('div', { role: 'status',
+            style: { marginBottom: 8, color: cloudflare.phase === 'error' ? '#b42318' : 'inherit' } },
+            cloudflare.message),
+          cloudflare?.phase === 'select_account' && cloudflare.accounts?.map(account =>
+            h('button', { key: account.id, type: 'button', style: { ...buttonStyle, margin: '0 6px 8px 0' },
+              onClick: () => chooseCloudflareAccount(account.id) }, account.name)),
+          h('div', { style: { opacity: 0.65, marginBottom: 5 } }, '手动填写中继地址'),
           h('div', { style: { display: 'flex', gap: 6 } },
             h('input', { type: 'url', key: details?.relayUrl || 'empty', ref: relayInput,
               defaultValue: details?.relayUrl || '',
@@ -136,12 +184,12 @@ window.__ModuleLoader__.load({
           details?.relayUrl && details?.hostId && h('div', {
             style: { overflowWrap: 'anywhere', userSelect: 'text', marginTop: 8 },
           }, `手机远程地址  relay://${new URL(details.relayUrl).host}/${details.hostId}`)),
-          h('div', { style: { marginTop: 4, fontWeight: 600 } },
-            details ? `服务端口  ${details.port}` : '服务端口  获取中'),
+          details?.relayUrl && h('div', { style: { marginTop: 4 } },
+            '手机端请复制上方远程地址')),
           h('div', { style: { fontSize: 11, opacity: 0.7, marginTop: 12,
             lineHeight: 1.6, overflowWrap: 'anywhere' } },
-          details ? '局域网自动发现 · 局域网和 USB 使用同一端口'
-            : '正在获取连接信息…')));
+          details ? (connectionMode === 'lan' ? '局域网自动发现 · 局域网和 USB 使用同一端口'
+            : '请在手机端添加此电脑并输入配对码') : '正在获取连接信息…'));
     }
 
     function PairingItem({ view }) {

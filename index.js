@@ -10,6 +10,7 @@ import { promisify } from 'node:util';
 import { lanInterfaces, lanNetworks, startDiscovery } from './discovery.js';
 import { loadTlsIdentity } from './tls-identity.js';
 import { startRelayHost } from './remote-relay.js';
+import { createCloudflareOnboarding } from './cloudflare-onboarding.js';
 
 const MAX_BODY = 8192;
 const MAX_FILE_BODY = 12 * 1024 * 1024;
@@ -818,6 +819,7 @@ export function apply(ctx, config = {}) {
   let relayUrl = '';
   let relayStatus = 'off';
   let updateRelay;
+  let onboarding;
   const port = Number(config.securePort ?? 19390);
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     throw new Error('DSH_REMOTE_PORT must be a valid TCP port');
@@ -868,6 +870,31 @@ export function apply(ctx, config = {}) {
       } catch { return new Response(null, { status: 500 }); }
     },
   });
+  ctx.connection.fetch.register({
+    path: '/api/dsh-remote-cloudflare', methods: ['GET'], requestBody: 'buffered',
+    fetch: () => new Response(JSON.stringify(onboarding?.snapshot() ?? {
+      phase: 'idle', message: '' }), { headers: {
+      'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store',
+    } }),
+  });
+  ctx.connection.fetch.register({
+    path: '/api/dsh-remote-cloudflare/start', methods: ['POST'], requestBody: 'buffered',
+    fetch: () => new Response(JSON.stringify(onboarding?.begin() ?? {
+      phase: 'error', message: '插件尚未就绪' }), { status: onboarding ? 200 : 503,
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+    }),
+  });
+  ctx.connection.fetch.register({
+    path: '/api/dsh-remote-cloudflare/account', methods: ['POST'], requestBody: 'buffered',
+    fetch: async request => {
+      let id;
+      try { ({ id } = await request.json()); } catch { return new Response(null, { status: 400 }); }
+      if (!onboarding?.chooseAccount(id)) return new Response(null, { status: 400 });
+      return new Response(JSON.stringify(onboarding.snapshot()), { headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+      } });
+    },
+  });
   ctx.effect(async () => {
     pairing = await loadPairing(ctx.credentials);
     tlsIdentity = await loadTlsIdentity(ctx.credentials, pairing.hostId);
@@ -884,6 +911,7 @@ export function apply(ctx, config = {}) {
       if (url) relay = startRelayHost({ pairing, tlsIdentity, port,
         signalUrl: url, onStatus: value => { relayStatus = value; } });
     };
+    onboarding = createCloudflareOnboarding(updateRelay);
     if (relayUrl) {
       relayStatus = 'connecting';
       relay = startRelayHost({ pairing, tlsIdentity, port,
@@ -917,6 +945,8 @@ export function apply(ctx, config = {}) {
     const refresh = setInterval(syncListeners, 10_000);
     const stopDiscovery = startDiscovery(pairing, port, tlsIdentity.fingerprint);
     return () => {
+      onboarding?.stop();
+      onboarding = null;
       relay?.stop();
       updateRelay = null;
       clearInterval(refresh);
