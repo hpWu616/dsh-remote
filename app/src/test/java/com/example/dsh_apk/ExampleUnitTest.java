@@ -9,7 +9,7 @@ import static org.junit.Assert.assertTrue;
 public class ExampleUnitTest {
     @Test
     public void relayApiPathKeepsTheDeviceAddressSeparate() throws Exception {
-        String device = "relay://dsh-remote-signal.hpwu616-dsh-remote.workers.dev/47ac464148e3";
+        String device = "relay://example-worker.example.workers.dev/47ac464148e3";
         assertEquals(device, RelayClient.origin(device));
         assertEquals(device, RelayClient.origin(device + "/v1/health"));
         assertEquals(device, RelayClient.origin(device + "/v1/models?sessionId=abc"));

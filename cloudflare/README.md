@@ -1,24 +1,26 @@
-# WebSocket relay / WebSocket 中继
+# Deploy your own relay / 部署自己的中继
 
-The Worker forwards encrypted frames between one dsh Host plugin and one phone. It does not need Cloudflare TURN, a public PC port, or a payment method. It uses a SQLite-backed Durable Object available on Workers Free. Both devices still need to reach the Worker hostname.
+The Android app and PC plugin do not use a shared public relay. Deploy this Worker in your own Cloudflare account for connections across different routers. The Worker forwards end-to-end encrypted messages; it needs a SQLite-backed Durable Object, but no Cloudflare TURN key or public PC port.
 
-此 Worker 在一台 PC 插件与一部手机之间转发加密消息。不需要 Cloudflare TURN、公网 PC 端口或支付方式；使用 Workers 免费计划可用的 SQLite Durable Object。手机和 PC 都必须能访问 Worker 域名。
+Android App 与 PC 插件不使用项目作者的公用中继。跨路由器连接前，请将本目录的 Worker 部署到自己的 Cloudflare 账号。Worker 转发端到端加密的消息，需要一个 SQLite Durable Object，不需要 Cloudflare TURN 密钥或 PC 公网端口。
 
-## Deploy / 部署
+## Browser setup / 浏览器部署
 
-From the repository root / 在仓库根目录：
+1. Open [Deploy to Cloudflare](https://deploy.workers.cloudflare.com/?url=https://github.com/hpWu616/dsh-remote/tree/main/cloudflare). Sign in to Cloudflare and GitHub, then select **your** Cloudflare account. / 打开链接，登录 Cloudflare 和 GitHub，选择**自己的** Cloudflare 账号。
+2. Review the proposed Worker and Durable Object, then complete deployment. If prompted, enable a `workers.dev` subdomain in your account. / 检查页面中的 Worker 与 Durable Object，完成部署；如提示，先为账号开通 `workers.dev` 子域名。
+3. Note the deployed `https://YOUR-WORKER.YOUR-SUBDOMAIN.workers.dev` URL. Visit `https://YOUR-WORKER.YOUR-SUBDOMAIN.workers.dev/health` from both the PC and phone; it should return `{"ok":true}`. / 记下部署后的 HTTPS 地址，用电脑和手机浏览器分别访问其 `/health` 路径，确认返回 `{"ok":true}`。
+4. In dsh, open **Plugins → Phone connection** and save `wss://YOUR-WORKER.YOUR-SUBDOMAIN.workers.dev/signal`. Wait for relay status `online`. Copy the panel's `relay://…/<host-id>` address and PC identity code into the Android app, then pair with the eight-digit code shown on the PC. / 在 dsh「插件 → 手机连接」中保存对应的 `wss://…/signal` 地址。等中继状态变为 `online`，再将面板生成的 `relay://…/<电脑编号>` 地址和电脑身份码填入 App，并输入 PC 上显示的 8 位配对码。
 
-```powershell
-npm ci
-npx wrangler login
-cd cloudflare
-npx wrangler deploy
-```
+One Worker can serve several PCs owned by the same user; configure the same WSS URL on each PC. Each PC retains its own host ID, identity code, and pairing code. / 同一用户的多台电脑可以共用自己的 Worker；每台电脑都需填写相同的 WSS 地址，但各自有独立的编号、身份码和配对码。
 
-Create your account's `workers.dev` subdomain if Wrangler requests it. The deployment output gives a URL such as `https://YOUR-WORKER.YOUR-SUBDOMAIN.workers.dev`. In the PC plugin's **手机连接** panel, set `wss://YOUR-WORKER.YOUR-SUBDOMAIN.workers.dev/signal` and save. Wait for status `online`; copy the displayed `relay://…/<host-id>` address to the Android app and compare the PC identity code. Each PC can use the same Worker URL but has its own host ID, identity code, and pairing code.
+## Command-line alternative / 命令行备选
 
-若 Wrangler 提示创建 `workers.dev` 子域名，先在账号中设置。部署输出会给出 `https://YOUR-WORKER.YOUR-SUBDOMAIN.workers.dev`。在 PC 插件「手机连接」中填写 `wss://YOUR-WORKER.YOUR-SUBDOMAIN.workers.dev/signal` 并保存；等待状态显示 `online`，再将面板显示的 `relay://…/<电脑编号>` 地址填入 App，并核对 PC 身份码。多台 PC 可共用 Worker URL，但各有自己的编号、身份码和配对码。
+From this directory, run `npx wrangler login` and then `npx wrangler deploy`. Wrangler will print your Worker URL. / 在本目录运行 `npx wrangler login`、`npx wrangler deploy`；Wrangler 会输出 Worker 地址。
 
-`GET /health` returns `{ "ok": true }`. The Worker stores a hash of each host's relay registration secret and temporary pairing-code mappings. It does not receive the dsh API bearer token or decrypt API frames. The phone verifies the PC certificate fingerprint and an ephemeral ECDH handshake signed by that PC. A PC can disable new pairing without invalidating an already paired phone.
+## Notes / 注意
 
-Worker Free has [request and Durable Object usage limits](https://developers.cloudflare.com/durable-objects/platform/pricing/); connectivity can stop when the allowance is exhausted. Keep the Worker URL stable after pairing; changing it requires adding each PC again in the app. If `workers.dev` is inaccessible from either network, deploy under a reachable domain you control.
+- The plugin does not connect to any relay until you configure one. Local network discovery and HTTPS pairing work without Cloudflare. / 未配置时插件不会连接任何中继；局域网发现和 HTTPS 配对不依赖 Cloudflare。
+- If an older installation has a saved relay URL, replace it in the PC panel. Changing the Worker hostname changes the `relay://` device address, so add the PC again in the app. / 旧版若保存过中继地址，请在 PC 面板中改为自己的地址；更换域名会改变 App 中的设备地址，需要重新添加该电脑。
+- Both devices must be able to reach your Worker domain. Workers Free has [request and Durable Object limits](https://developers.cloudflare.com/durable-objects/platform/pricing/). / 手机和电脑均需能访问该域名；Workers 免费计划有请求和 Durable Object 用量限制。
+
+[Cloudflare's Deploy button documentation](https://developers.cloudflare.com/workers/platform/deploy-buttons/) explains the deployment flow and automatic Durable Object provisioning. / Cloudflare 官方文档说明了部署按钮和 Durable Object 的自动创建流程。

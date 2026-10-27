@@ -18,7 +18,6 @@ const TIMEOUT_MS = 120_000;
 const PAIR_WINDOW_MS = 300_000;
 const CREDENTIAL_KEY = 'dsh-remote-host/pairing';
 const RELAY_KEY = 'dsh-remote-host/relay';
-const DEFAULT_RELAY_URL = 'wss://dsh-remote-signal.hpwu616-dsh-remote.workers.dev/signal';
 const execFileAsync = promisify(execFile);
 
 async function driveRoots() {
@@ -874,7 +873,7 @@ export function apply(ctx, config = {}) {
     tlsIdentity = await loadTlsIdentity(ctx.credentials, pairing.hostId);
     const storedRelay = await ctx.credentials.readRecord(RELAY_KEY);
     relayUrl = storedRelay ? (storedRelay.payload?.url || '')
-      : (config.signalUrl || DEFAULT_RELAY_URL);
+      : (config.signalUrl || '');
     updateRelay = async url => {
       await ctx.credentials.modifyRecord(RELAY_KEY,
         () => ({ kind: 'grant', payload: { url } }));

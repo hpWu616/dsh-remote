@@ -34,13 +34,16 @@ If dsh reports an installation timeout, run `git ls-remote https://github.com/hp
 
 ## Connect across different routers
 
-By default, the plugin uses `wss://dsh-remote-signal.hpwu616-dsh-remote.workers.dev/signal`. Its PC panel shows the relay status and a device-specific `relay://…/<host-id>` address. Each PC has its own address and identity code.
+The plugin has no shared default relay. Each user who wants access across routers deploys a Worker in their **own Cloudflare account** and enters its address in the PC plugin. The phone uses the device address shown by that PC.
 
-1. Confirm that the PC panel shows relay status `online`. Copy its remote address and the first 24 characters of its identity code. Enable new-phone pairing and show the eight-digit code.
-2. In the app, tap Add device and enter a name, the copied `relay://…` address, and the PC identity code. No Tailscale client, PC IP, or router port forwarding is needed.
-3. Select the device and enter its current eight-digit code. After pairing, you may disable new-phone pairing. The app stores the token and reconnects when reopened.
+1. Click [Deploy to Cloudflare](https://deploy.workers.cloudflare.com/?url=https://github.com/hpWu616/dsh-remote/tree/main/cloudflare), sign in to Cloudflare and GitHub, select your Cloudflare account, and follow the page to create the Worker and Durable Object. See the [relay deployment guide](cloudflare/README.md) for details and a command-line alternative.
+2. Copy the resulting `https://YOUR-WORKER.YOUR-SUBDOMAIN.workers.dev` address. Open that address plus `/health` in a browser and confirm it returns `{"ok":true}`.
+3. On every PC, open Plugins → Phone connection, enter `wss://YOUR-WORKER.YOUR-SUBDOMAIN.workers.dev/signal`, and save. Wait for `online`, then copy the generated `relay://…/<host-id>` address and the first 24 characters of the PC identity code. Enable new-phone pairing and show the eight-digit code.
+4. In the app, add a device using the copied `relay://…` address and identity code. Select it and enter the current eight-digit code. You can disable new-phone pairing afterward; the app reconnects when reopened.
 
-The relay forwards end-to-end encrypted frames. The phone checks the PC certificate fingerprint on first connection and verifies the PC signature thereafter; Cloudflare cannot read conversation contents or the pairing token. Both devices must be able to reach the `workers.dev` domain. If that domain is blocked, deploy the [Worker source](cloudflare/) in your Cloudflare account and put your own `wss://…/signal` URL in the PC panel. Workers Free requires no TURN key or payment method. When free usage is exhausted, the relay may pause; see [Cloudflare's official limits](https://developers.cloudflare.com/durable-objects/platform/pricing/).
+Multiple PCs may share your Worker, but each PC has its own device address, identity code, and pairing code. After upgrading an older plugin, replace any previously saved shared relay URL with your own. Changing the relay hostname requires adding the affected PCs again in the app. Local network use does not require a Worker, Tailscale, a PC public IP, or router port forwarding.
+
+The relay forwards end-to-end encrypted frames. The phone checks the PC certificate fingerprint on first connection and verifies the PC signature thereafter; Cloudflare cannot read conversation contents or the pairing token. Both ends must reach your Worker hostname. Workers Free does not need a TURN key; if free usage is exhausted, the relay may pause. See [Cloudflare's official limits](https://developers.cloudflare.com/durable-objects/platform/pricing/).
 
 ## Connect and pair on a local network
 
