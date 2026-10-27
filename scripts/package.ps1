@@ -4,7 +4,7 @@ $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path.TrimEnd('\')
 $gradle = Join-Path $repo 'gradlew.bat'
 $apkSource = Join-Path $repo 'app\build\outputs\apk\debug\app-debug.apk'
-$pluginSource = Join-Path $repo 'dsh-remote-host'
+$pluginSource = $repo
 $dist = Join-Path $repo 'dist'
 $appVersion = [regex]::Match(
     (Get-Content -LiteralPath (Join-Path $repo 'app\build.gradle.kts') -Raw),
@@ -33,7 +33,7 @@ $stagePlugin = Join-Path $stage 'dsh-remote-host'
 New-Item -ItemType Directory -Path (Join-Path $stagePlugin 'locale') -Force | Out-Null
 try {
     foreach ($name in @('package.json', 'cordis.patch.yml', 'index.js', 'client.js',
-            'discovery.js', 'icon.svg')) {
+            'discovery.js', 'icon.svg', 'LICENSE')) {
         Copy-Item -LiteralPath (Join-Path $pluginSource $name) -Destination $stagePlugin
     }
     Copy-Item -LiteralPath (Join-Path $pluginSource 'locale\en.json') `

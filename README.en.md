@@ -2,7 +2,7 @@
 
 [中文](README.md) · [English](README.en.md)
 
-Use an Android phone to connect to a PC running DeepSeek Harness (dsh). This repository contains the [Android app](app/) and the [dsh Host plugin](dsh-remote-host/). The app can manage workspaces and conversations across multiple PCs, send messages, and use models, work modes, skills, and scheduled tasks available on the PC. You need a PC with dsh, a phone running Android 7.0 or later, and a local network on which the two devices can reach each other.
+Use an Android phone to connect to a PC running DeepSeek Harness (dsh). This repository contains the [Android app](app/) and a dsh Host plugin at the repository root. The app can manage workspaces and conversations across multiple PCs, send messages, and use models, work modes, skills, and scheduled tasks available on the PC. You need a PC with dsh, a phone running Android 7.0 or later, and a local network on which the two devices can reach each other.
 
 ## Download
 
@@ -18,12 +18,11 @@ Open the [latest release](https://github.com/hpWu616/dsh-remote/releases/latest)
 
 ## Install the PC plugin
 
-1. Download and extract the plugin ZIP on the PC. Locate the `dsh-remote-host` directory containing `package.json` and `cordis.patch.yml`.
-2. In dsh's Plugins page, use the local bundle installation option and select the **extracted directory**. Alternatively, in dsh Creator mode invoke `plugin_manager` → `install_bundle` with that directory's **absolute path** as `target`. Do not select the ZIP itself.
-3. Confirm that the plugin is enabled, then **fully quit and restart dsh**. Restart again after updating the plugin.
-4. Open “Plugins → Installed → Built-in plugin settings → Phone connection” (the dsh UI currently labels the last item “手机连接”). There you can allow or block new pairing, show or hide the eight-digit code, and see the PC address and port. Collapsing the panel leaves a small “手机连接” button.
+1. In dsh's Plugins page, choose to install a third-party plugin and enter `github:hpWu616/dsh-remote` (or `https://github.com/hpWu616/dsh-remote`). The repository root is the plugin package, with `package.json` and `cordis.patch.yml`.
+2. Confirm that the plugin is enabled, then **fully quit and restart dsh**. Restart again after updating the plugin.
+3. Open “Plugins → Installed → Built-in plugin settings → Phone connection” (the dsh UI currently labels the last item “手机连接”). There you can allow or block new pairing, show or hide the eight-digit code, and see the PC address and port. Collapsing the panel leaves a small “手机连接” button.
 
-Do not edit dsh's installed files or profile by hand.
+If dsh reports an installation timeout, run `git ls-remote https://github.com/hpWu616/dsh-remote.git HEAD` on the PC. If that command also cannot connect, GitHub is unreachable to Git on this PC; changing the plugin layout cannot fix that timeout. Download `dsh-remote-host-v*.zip` from the release instead, extract it, and select the extracted `dsh-remote-host` directory in dsh's local bundle installer. In Creator mode, you can also call `plugin_manager` → `install_bundle` with that directory's absolute path as `target`. Do not select the ZIP itself or edit dsh's installed files or profile by hand.
 
 ## Install the Android app
 
@@ -62,14 +61,14 @@ On Windows, install the Android SDK and JDK 25, then run from the repository roo
 .\scripts\package.ps1
 ```
 
-The script builds a debug APK and writes the APK, plugin ZIP, and SHA-256 checksums to the Git-ignored `dist/` directory. To build only the APK, run `.\gradlew.bat :app:assembleDebug`. Run `node --test` in `dsh-remote-host` for plugin tests. [GitHub Actions](.github/workflows/package-release.yml) builds the release assets.
+The script builds a debug APK and writes the APK, plugin ZIP, and SHA-256 checksums to the Git-ignored `dist/` directory. To build only the APK, run `.\gradlew.bat :app:assembleDebug`. Run `npm test` at the repository root for plugin tests. [GitHub Actions](.github/workflows/package-release.yml) builds release assets.
 
 ## Repository layout
 
 | Path | Contents |
 | --- | --- |
 | `app/` | Android client |
-| `dsh-remote-host/` | PC-side dsh plugin |
+| `package.json`, `cordis.patch.yml`, `index.js`, etc. | PC-side dsh plugin; the repository root is installable as a Git package |
 | `scripts/package.ps1` | Local packaging script |
 | `docs/API.md` | Network and API details |
 

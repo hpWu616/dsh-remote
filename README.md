@@ -2,7 +2,7 @@
 
 [中文](README.md) · [English](README.en.md)
 
-用 Android 手机连接运行 DeepSeek Harness（dsh）的电脑。项目由 [Android App](app/) 和 [dsh Host 插件](dsh-remote-host/)组成：手机可管理多台电脑的工作区与会话，发送消息，并使用 PC 端的模型、工作模式、技能和自动化任务。使用前需要一台已安装 dsh 的电脑、一部 Android 7.0 或更新版本的手机，以及两者可互通的局域网。
+用 Android 手机连接运行 DeepSeek Harness（dsh）的电脑。项目由 [Android App](app/) 和仓库根目录的 dsh Host 插件组成：手机可管理多台电脑的工作区与会话，发送消息，并使用 PC 端的模型、工作模式、技能和自动化任务。使用前需要一台已安装 dsh 的电脑、一部 Android 7.0 或更新版本的手机，以及两者可互通的局域网。
 
 ## 下载
 
@@ -18,10 +18,11 @@
 
 ## 安装 PC 插件
 
-1. 在电脑下载并解压插件 ZIP，找到内含 `package.json` 和 `cordis.patch.yml` 的 `dsh-remote-host` 文件夹。
-2. 打开 dsh 的「插件」页面，使用本地 bundle 安装功能选择**解压后的文件夹**。也可在 dsh Creator 模式调用 `plugin_manager` → `install_bundle`，将该文件夹的**绝对路径**填入 `target`。不要把 ZIP 文件本身作为目标。
-3. 确认插件已启用，**完全退出并重新打开 dsh**。更新插件版本后也需重启。
-4. 打开「插件 → 已安装 → 内置插件配置 → 手机连接」。此处可打开或关闭新手机配对、显示或隐藏 8 位配对码，并查看电脑地址与端口。收起后会保留一个小的「手机连接」入口。
+1. 在 dsh「插件」页面选择安装第三方插件，输入 `github:hpWu616/dsh-remote`（也可输入 `https://github.com/hpWu616/dsh-remote`）。仓库根目录就是插件包，包含 `package.json` 和 `cordis.patch.yml`。
+2. 确认插件已启用，**完全退出并重新打开 dsh**。更新插件版本后也需重启。
+3. 打开「插件 → 已安装 → 内置插件配置 → 手机连接」。此处可打开或关闭新手机配对、显示或隐藏 8 位配对码，并查看电脑地址与端口。收起后会保留一个小的「手机连接」入口。
+
+如果 dsh 显示“安装超时”，先在电脑终端运行 `git ls-remote https://github.com/hpWu616/dsh-remote.git HEAD`。此命令也无法连接时，说明电脑的 Git 无法访问 GitHub；修改插件文件结构不能解决网络超时。此时可从 Release 下载 `dsh-remote-host-v*.zip`，解压后在 dsh「插件」页面选择本地目录安装，或在 Creator 模式调用 `plugin_manager` → `install_bundle`，将解压后的 `dsh-remote-host` 文件夹绝对路径填入 `target`。不要选择 ZIP 文件本身，也不要修改 dsh 的安装文件或 profile。
 
 不需要改动 dsh 的安装目录或用户配置文件。
 
@@ -62,14 +63,14 @@ Windows 上准备 Android SDK 和 JDK 25，在仓库根目录运行：
 .\scripts\package.ps1
 ```
 
-脚本会构建调试 APK，并在忽略提交的 `dist/` 目录生成 APK、插件 ZIP 和 SHA-256 校验文件。只构建 APK 可运行 `.\gradlew.bat :app:assembleDebug`；插件测试可在 `dsh-remote-host` 目录运行 `node --test`。Release 由 [GitHub Actions](.github/workflows/package-release.yml) 自动构建。
+脚本会构建调试 APK，并在忽略提交的 `dist/` 目录生成 APK、插件 ZIP 和 SHA-256 校验文件。只构建 APK 可运行 `.\gradlew.bat :app:assembleDebug`；在仓库根目录运行 `npm test` 可测试插件。Release 由 [GitHub Actions](.github/workflows/package-release.yml) 构建。
 
 ## 仓库目录
 
 | 路径 | 内容 |
 | --- | --- |
 | `app/` | Android 客户端 |
-| `dsh-remote-host/` | PC 端 dsh 插件 |
+| `package.json`、`cordis.patch.yml`、`index.js` 等 | PC 端 dsh 插件；仓库根目录可作为 Git 插件包安装 |
 | `scripts/package.ps1` | 本地打包脚本 |
 | `docs/API.md` | 网络和接口说明 |
 

@@ -1,14 +1,19 @@
 {
   "name": "@local/dsh-remote-host",
-  "version": "0.12.0",
+  "version": "0.12.1",
   "private": true,
   "type": "module",
   "description": "Authenticated command bridge for the dsh Remote Android client",
+  "main": "./index.js",
+  "license": "MIT",
+  "repository": "https://github.com/hpWu616/dsh-remote",
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
     "./locale/*.json": "./locale/*.json",
-    "./icon": "./icon.svg"
+    "./icon": "./icon.svg",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
   },
   "files": ["index.js", "client.js", "discovery.js", "cordis.patch.yml", "locale/*.json", "icon.svg"],
   "scripts": {
