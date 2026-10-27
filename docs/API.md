@@ -2,7 +2,7 @@
 
 [中文使用说明](../README.md) · [English user guide](../README.en.md)
 
-The Android app talks to the dsh Host plugin on each PC. The plugin listens on TCP 19390 for HTTPS, uses UDP 19389 for LAN discovery, and advertises an mDNS `dsh-<device-id>.local` name on UDP 5353. The PC's existing dsh web server is separate from these listeners.
+The Android app talks to the dsh Host plugin on each PC. Locally, the plugin listens on TCP 19390 for HTTPS, uses UDP 19389 for LAN discovery, and advertises an mDNS `dsh-<device-id>.local` name on UDP 5353. Across routers, the PC and phone connect outbound to the Cloudflare WebSocket relay. The PC's existing dsh web server is separate from these listeners.
 
 ## Pairing and transport
 
@@ -11,7 +11,13 @@ The Android app talks to the dsh Host plugin on each PC. The plugin listens on T
 3. Each PC generates a separate self-signed TLS certificate and stores its private key in dsh's credential service. On first manual connection, the phone displays the certificate's first 96 fingerprint bits; the user compares them with the PC panel. The phone pins the full SHA-256 certificate fingerprint and stores each device token with Android Keystore protection.
 4. All remaining endpoints require `Authorization: Bearer <token>`.
 
-The endpoint can invoke PC operations, including commands; do not forward the HTTPS listener to the internet. Manual HTTPS connection works across reachable private subnets and does not depend on mDNS or UDP. A matching code does not provide routing or a relay.
+The endpoint can invoke PC operations, including commands; do not forward the HTTPS listener to the internet. Manual HTTPS connection works across reachable private subnets and does not depend on mDNS or UDP. For isolated networks, use the relay described below.
+
+## Encrypted WebSocket relay
+
+The PC connects to the configured `wss://…/signal` endpoint and registers its 12-character host ID with a secret derived from its stored pairing token. The phone connects to the same endpoint by host ID or eight-digit code. The PC validates the code or a nonce-bound HMAC proof from a previously paired phone. A successful code pairing rotates the code.
+
+Both sides generate ephemeral P-256 ECDH keys. The PC signs the challenge and both public keys with the private key of its existing HTTPS identity certificate. The phone checks the pinned certificate fingerprint and signature before deriving a per-connection AES-256-GCM key. Frame sequence numbers and distinct direction IVs reject replay and tampering. The PC relays authenticated `/v1/*` requests to its loopback HTTPS listener. The Worker sees host IDs, temporary codes, and encrypted frame sizes, but not API bodies or bearer tokens. One phone can be active per host at a time. The Worker has rate limits on phone joins and message-size limits; see [Worker source](../cloudflare/worker.js).
 
 ## HTTPS endpoints
 

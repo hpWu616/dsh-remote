@@ -78,6 +78,14 @@ final class SecretStore {
         prefs.edit().putString("cert_" + keySuffix(url), fingerprint).apply();
     }
 
+    void saveRelayFingerprint(String url, String fingerprint) {
+        String normalized = fingerprint.replace(" ", "").toLowerCase(java.util.Locale.ROOT);
+        if (!RelayClient.isRelayUrl(url) || !normalized.matches("[a-f0-9]{24}|[a-f0-9]{64}")) {
+            throw new IllegalArgumentException("请输入 PC 显示的 24 位身份码");
+        }
+        prefs.edit().putString("cert_" + keySuffix(url), normalized).apply();
+    }
+
     void removeFingerprint(String url) {
         prefs.edit().remove("cert_" + keySuffix(url)).apply();
     }

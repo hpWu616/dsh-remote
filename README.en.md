@@ -2,7 +2,7 @@
 
 [中文](README.md) · [English](README.en.md)
 
-Use an Android phone to connect to a PC running DeepSeek Harness (dsh). This repository contains the [Android app](app/) and a dsh Host plugin at the repository root. The app can manage workspaces and conversations across multiple PCs, send messages, and use models, work modes, skills, and scheduled tasks available on the PC. You need a PC with dsh, a phone running Android 7.0 or later, and a local network on which the two devices can reach each other.
+Use an Android phone to connect to a PC running DeepSeek Harness (dsh). This repository contains the [Android app](app/), a dsh Host plugin at the repository root, and a [Cloudflare WebSocket relay](cloudflare/). The app can manage workspaces and conversations across multiple PCs, send messages, and use models, work modes, skills, and scheduled tasks available on the PC. The phone and PC may use different routers if both can reach the same relay.
 
 ## Download
 
@@ -20,7 +20,7 @@ Open the [latest release](https://github.com/hpWu616/dsh-remote/releases/latest)
 
 1. In dsh's Plugins page, choose to install a third-party plugin and enter `github:hpWu616/dsh-remote` (or `https://github.com/hpWu616/dsh-remote`). The repository root is the plugin package, with `package.json` and `cordis.patch.yml`.
 2. Confirm that the plugin is enabled, then **fully quit and restart dsh**. Restart again after updating the plugin.
-3. Open “Plugins → Installed → Built-in plugin settings → Phone connection” (the dsh UI currently labels the last item “手机连接”). There you can control pairing and see the PC's IPv4 address, HTTPS port, and identity code. Collapsing the panel leaves a small “手机连接” button.
+3. Open “Plugins → Installed → Built-in plugin settings → Phone connection” (the dsh UI currently labels the last item “手机连接”). There you can control pairing and see the PC's IPv4 address, HTTPS port, identity code, relay status, and remote address. Collapsing the panel leaves a small “手机连接” button.
 
 Install the plugin separately on every PC you want to connect. The new package name is `@hpwu616/dsh-remote-host`. If `@local/dsh-remote-host` is already installed, remove or disable it in dsh, fully quit dsh, and install the new package so both versions do not compete for the same port.
 
@@ -32,9 +32,22 @@ If dsh reports an installation timeout, run `git ls-remote https://github.com/hp
 2. Find the file with the **`.apk` extension** in Files or Downloads and open it. If Android blocks the installation, allow installs from the browser or file manager when prompted.
 3. Open dsh Remote. When transferring the APK through a chat app, “received” only confirms the transfer; you still need to open the APK from a file manager.
 
-## Connect and pair
+## Connect across different routers
 
-1. The phone must be able to reach the PC's address and HTTPS port. Manually added PCs can be on different routed private subnets. The eight-digit code cannot cross an isolated network by itself.
+The plugin has no shared default relay. Each user who wants access across routers deploys a Worker in their **own Cloudflare account** and enters its address in the PC plugin. The phone uses the device address shown by that PC.
+
+1. Click [Deploy to Cloudflare](https://deploy.workers.cloudflare.com/?url=https://github.com/hpWu616/dsh-remote/tree/main/cloudflare), sign in to Cloudflare and GitHub, select your Cloudflare account, and follow the page to create the Worker and Durable Object. See the [relay deployment guide](cloudflare/README.md) for details and a command-line alternative.
+2. Copy the resulting `https://YOUR-WORKER.YOUR-SUBDOMAIN.workers.dev` address. Open that address plus `/health` in a browser and confirm it returns `{"ok":true}`.
+3. On every PC, open Plugins → Phone connection, enter `wss://YOUR-WORKER.YOUR-SUBDOMAIN.workers.dev/signal`, and save. Wait for `online`, then copy the generated `relay://…/<host-id>` address and the first 24 characters of the PC identity code. Enable new-phone pairing and show the eight-digit code.
+4. In the app, add a device using the copied `relay://…` address and identity code. Select it and enter the current eight-digit code. You can disable new-phone pairing afterward; the app reconnects when reopened.
+
+Multiple PCs may share your Worker, but each PC has its own device address, identity code, and pairing code. After upgrading an older plugin, replace any previously saved shared relay URL with your own. Changing the relay hostname requires adding the affected PCs again in the app. Local network use does not require a Worker, Tailscale, a PC public IP, or router port forwarding.
+
+The relay forwards end-to-end encrypted frames. The phone checks the PC certificate fingerprint on first connection and verifies the PC signature thereafter; Cloudflare cannot read conversation contents or the pairing token. Both ends must reach your Worker hostname. Workers Free does not need a TURN key; if free usage is exhausted, the relay may pause. See [Cloudflare's official limits](https://developers.cloudflare.com/durable-objects/platform/pricing/).
+
+## Connect and pair on a local network
+
+1. The phone must be able to reach the PC's address and HTTPS port. Manually added PCs can be on different routed private subnets. Use the relay above if the networks cannot route to each other.
 2. Tap Add device and enter the PC's `https://IPv4:19390`, for example `https://10.15.223.91:19390`. Compare the identity code shown on the phone with the code in the PC's Phone connection panel, then confirm only if they match. Give each PC its own name and note. Replace saved HTTP addresses with the HTTPS address shown on the PC, then verify the identity code again.
 3. On the PC, enable “允许新手机配对” (Allow new phones to pair) under “手机连接”, then tap “显示” (Show) for the eight-digit code. Enter it for that PC in the app and tap “配对设备” (Pair device). Verify and pair each PC separately.
 4. You may hide the code or disable new pairing afterward. Previously paired devices are checked automatically when the app is reopened. The app does not maintain a live connection while in the background.
@@ -50,12 +63,13 @@ If dsh reports an installation timeout, run `git ls-remote https://github.com/hp
 ## Troubleshooting
 
 - **No PC found:** Automatic discovery needs a broadcast LAN. Across subnets, enter `https://PC-IPv4:19390` manually. Confirm the plugin has been updated and dsh restarted, and that TCP 19390 is reachable. A browser may warn about the self-signed certificate at `https://PC-IPv4:19390/v1/health`; verify the identity code in the app before pairing.
+- **Remote device offline:** Check the relay status in the PC panel. Both devices must reach the configured `workers.dev` hostname. If the PC is not `online`, try its `/health` URL in a browser. If blocked, use your own Cloudflare Worker hostname. The app address must begin with `relay://`, not `wss://`.
 - **Saved `.local` address is offline:** Edit the device and enter its `https://IPv4:19390` address. Compare identity codes and save. The app migrates an existing token when the PC identity matches.
 - **Plugin installer says no write permission:** If the installation details show `ERR_PNPM_EPERM` while renaming the old `@local/dsh-remote-host` directory, remove or disable the old plugin in dsh, fully quit dsh, and install the new package. Do not edit the dsh profile by hand.
 - **Code shown, but no connection:** The code authenticates a reachable PC; it does not establish a network route. The address and port shown in the PC panel help diagnose reachability.
 - **APK will not update:** Debug signatures from different builds may differ. Preserve any phone-side data you need before uninstalling the old app, installing the release APK, and pairing again.
 
-The plugin can execute operations on the PC. All device connections use fingerprint-verified HTTPS. **Do not expose any plugin port to the public internet.** See [API and network details](docs/API.md).
+The plugin can execute operations on the PC. Local connections use fingerprint-verified HTTPS; remote connections use a fingerprint-verified, end-to-end encrypted WebSocket relay. **Do not expose any plugin port to the public internet.** See [API and network details](docs/API.md).
 
 ## Build from source
 
@@ -65,7 +79,7 @@ On Windows, install the Android SDK and JDK 25, then run from the repository roo
 .\scripts\package.ps1
 ```
 
-The script builds a debug APK and writes the APK, plugin ZIP, and SHA-256 checksums to the Git-ignored `dist/` directory. To build only the APK, run `.\gradlew.bat :app:assembleDebug`. Run `npm test` at the repository root for plugin tests. [GitHub Actions](.github/workflows/package-release.yml) builds release assets.
+The script builds a debug APK and writes the APK, plugin ZIP, and SHA-256 checksums to the Git-ignored `dist/` directory. To build only the APK, run `.\gradlew.bat :app:assembleDebug`. Run `npm ci`, `npm run build:relay`, and `npm test` at the repository root to build and test the plugin. [GitHub Actions](.github/workflows/package-release.yml) builds release assets.
 
 ## Repository layout
 
@@ -74,6 +88,7 @@ The script builds a debug APK and writes the APK, plugin ZIP, and SHA-256 checks
 | `app/` | Android client |
 | `package.json`, `cordis.patch.yml`, `index.js`, etc. | PC-side dsh plugin; the repository root is installable as a Git package |
 | `scripts/package.ps1` | Local packaging script |
+| `cloudflare/` | Free WebSocket relay Worker and deployment instructions |
 | `docs/API.md` | Network and API details |
 
 Machine-specific settings, IDE files, signing keys, and build outputs are excluded by [.gitignore](.gitignore). See [LICENSE](LICENSE) for the license.

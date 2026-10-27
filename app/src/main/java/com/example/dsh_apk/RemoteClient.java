@@ -25,6 +25,9 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 
 final class RemoteClient {
+    private RelayClient relayClient;
+
+    void setRelayClient(RelayClient relayClient) { this.relayClient = relayClient; }
     static final class ModelChoice {
         final String provider;
         final String providerName;
@@ -468,6 +471,10 @@ final class RemoteClient {
     }
 
     String pair(String baseUrl, String code) throws Exception {
+        if (RelayClient.isRelayUrl(baseUrl)) {
+            if (relayClient == null) throw new IOException("远程连接尚未初始化");
+            return relayClient.pair(baseUrl, code);
+        }
         HttpURLConnection connection = open(baseUrl + "/v1/pair", null);
         connection.setConnectTimeout(5000);
         connection.setReadTimeout(10000);
@@ -530,6 +537,10 @@ final class RemoteClient {
     }
 
     private HttpURLConnection open(String url, String token) throws Exception {
+        if (url.startsWith("relay://")) {
+            if (relayClient == null) throw new IOException("远程连接尚未初始化");
+            return new RelayHttpURLConnection(url, token, relayClient);
+        }
         URL target = new URL(url);
         if (!"https".equals(target.getProtocol())) {
             throw new IOException("此设备使用旧地址，请编辑设备并核对 HTTPS 身份码");

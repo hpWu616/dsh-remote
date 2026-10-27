@@ -9,6 +9,7 @@ window.__ModuleLoader__.load({
       const [expanded, setExpanded] = React.useState(true);
       const [showCode, setShowCode] = React.useState(false);
       const [changing, setChanging] = React.useState(false);
+      const relayInput = React.useRef(null);
       const transport = window.__DSH_TRANSPORT__;
       const send = transport?.fetch ? transport.fetch.bind(transport) : fetch;
       React.useEffect(() => {
@@ -36,6 +37,20 @@ window.__ModuleLoader__.load({
           setDetails({ ...details, enabled: !details.enabled });
           setShowCode(false);
         }).catch(() => setDetails(null)).finally(() => setChanging(false));
+      };
+      const saveRelay = () => {
+        if (changing) return;
+        const signalUrl = relayInput.current?.value.trim() || '';
+        setChanging(true);
+        send('api/dsh-remote-relay', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: signalUrl }),
+        }).then(response => {
+          if (!response.ok) throw new Error('invalid relay URL');
+          setDetails({ ...details, relayUrl: signalUrl,
+            relayStatus: signalUrl ? 'connecting' : 'off' });
+        }).catch(() => window.alert('远程信令地址无效或保存失败'))
+          .finally(() => setChanging(false));
       };
 
       const buttonStyle = {
@@ -99,6 +114,28 @@ window.__ModuleLoader__.load({
             h('div', null, `网段  ${network.subnet}`),
             h('div', null, `HTTPS 地址  https://${network.address}:${details.port}`)))
             : h('div', null, '未检测到局域网 IPv4 地址')),
+          h('div', { style: { marginTop: 14, paddingTop: 12,
+            borderTop: '1px solid var(--dsw-alias-border-l1, #d8dce7)' } },
+          h('div', { style: { fontWeight: 600, marginBottom: 7 } },
+            '跨网络连接 · Cloudflare 加密中继'),
+          h('div', { style: { opacity: 0.65, marginBottom: 6 } },
+            `信令状态：${details?.relayUrl ? details.relayStatus : '未配置'}`),
+          !details?.relayUrl && h('div', { style: { marginBottom: 8, lineHeight: 1.6 } },
+            '远程连接需先部署自己的 Cloudflare Worker。',
+            h('a', { href: 'https://github.com/hpWu616/dsh-remote/tree/main/cloudflare',
+              target: '_blank', rel: 'noopener noreferrer',
+              style: { color: 'var(--dsw-alias-label-link, #3e65d5)' } }, '查看部署步骤')),
+          h('div', { style: { display: 'flex', gap: 6 } },
+            h('input', { type: 'url', key: details?.relayUrl || 'empty', ref: relayInput,
+              defaultValue: details?.relayUrl || '',
+              placeholder: 'wss://你的 Worker 地址/signal',
+              style: { minWidth: 0, flex: 1, padding: '6px 8px',
+                borderRadius: 8, border: '1px solid #d8dce7' } }),
+            h('button', { type: 'button', style: buttonStyle,
+              disabled: changing, onClick: saveRelay }, '保存')),
+          details?.relayUrl && details?.hostId && h('div', {
+            style: { overflowWrap: 'anywhere', userSelect: 'text', marginTop: 8 },
+          }, `手机远程地址  relay://${new URL(details.relayUrl).host}/${details.hostId}`)),
           h('div', { style: { marginTop: 4, fontWeight: 600 } },
             details ? `服务端口  ${details.port}` : '服务端口  获取中'),
           h('div', { style: { fontSize: 11, opacity: 0.7, marginTop: 12,
